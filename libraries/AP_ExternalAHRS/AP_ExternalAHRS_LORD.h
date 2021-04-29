@@ -82,6 +82,11 @@ private:
     Quaternion quatNew;
     uint16_t GPSweek;
     double GPSTOW;
+    double latitudeNew;
+    double longitudeNew;
+    double mslNew;
+    float horizPositionAccNew;
+    float vertPositionAccNew;
     
 
     void readIMU();
@@ -95,6 +100,9 @@ private:
     void handleIMUPacket();
     void handleGNSSPacket();
     void handleEFDPacket();
+
+    double populateDouble(const uint8_t*, uint8_t);
+    float populateFloat(const uint8_t*, uint8_t);
     Vector3f populateVector3f(const uint8_t*,uint8_t,float);
     Quaternion populateQuaternion(const uint8_t*,uint8_t);
     uint64_t get8ByteField(const uint8_t*,uint8_t);

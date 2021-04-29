@@ -214,6 +214,21 @@ void AP_ExternalAHRS_LORD::parseIMU() {
 void AP_ExternalAHRS_LORD::parseGNSS() {
     GNSSPacketReady = true;
 
+    uint8_t payloadLen = currPacket.header[3];
+    for (uint8_t i = 0; i < payloadLen; i += currPacket.payload[i]) {
+        uint8_t fieldDesc = currPacket.payload[i+1];
+        switch (fieldDesc) {
+            case 0x03:
+                // TODO: Check for validation using the "valid flags" at offset 40
+                //  pg 130 of '3dm-cx5-45 dcp manual'
+                latitudeNew = populateDouble(currPacket.payload, i);
+                longitudeNew = populateDouble(currPacket.payload, i + 8);
+                mslNew = populateDouble(currPacket.payload, i + 24);
+                horizPositionAccNew = populateFloat(currPacket.payload, i + 32);
+                vertPositionAccNew = populateFloat(currPacket.payload, i + 36);
+                break;
+        }
+    }
 }
 
 void AP_ExternalAHRS_LORD::parseEFD() {
@@ -299,6 +314,16 @@ void AP_ExternalAHRS_LORD::get_filter_status(nav_filter_status &status) const
 void AP_ExternalAHRS_LORD::send_status_report(mavlink_channel_t chan) const
 {
     return;
+}
+
+float AP_ExternalAHRS_LORD::populateFloat(const uint8_t* pkt, uint8_t offset) {
+    auto tmp = get4ByteField(pkt, offset);
+    return *reinterpret_cast<float*>( &tmp );
+}
+
+double AP_ExternalAHRS_LORD::populateDouble(const uint8_t* pkt, uint8_t offset) {
+    auto tmp = get8ByteField(pkt, offset);
+    return *reinterpret_cast<double*>( &tmp );
 }
 
 Vector3f AP_ExternalAHRS_LORD::populateVector3f(const uint8_t* pkt, uint8_t offset, float multiplier) {
