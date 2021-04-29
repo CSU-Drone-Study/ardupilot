@@ -280,6 +280,23 @@ void AP_ExternalAHRS_LORD::handleIMUPacket() {
 
 void AP_ExternalAHRS_LORD::handleGNSSPacket() {
     GNSSPacketReady = false;
+
+    {
+        AP_ExternalAHRS::gps_data_message_t gps;
+
+        gps.longitude = longitudeNew * 1.0e7;
+        gps.latitude = latitudeNew * 1.0e7;
+        gps.msl_altitude = mslNew * 1.0e2;
+        gps.horizontal_pos_accuracy = horizPositionAccNew;
+        gps.vertical_pos_accuracy = vertPositionAccNew;
+
+        // FIXME: Update state in line with AP_ExternalAHRS_VectorNav.cpp:340
+        if (!state.have_origin) {
+            WITH_SEMAPHORE(state.sem);
+        }
+
+        AP::gps().handle_external(gps);
+    }
 }
 
 void AP_ExternalAHRS_LORD::handleEFDPacket() {
