@@ -259,8 +259,6 @@ void AP_ExternalAHRS_LORD::handleIMUPacket() {
         gps.gps_week = GPSweek;
         gps.ms_tow = (uint32_t)(GPSTOW * 1000);
 
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "GPSweek: %d", gps.gps_week);
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ms_tow: %d", (int)gps.ms_tow);
         AP::gps().handle_external(gps);
     }
 }
