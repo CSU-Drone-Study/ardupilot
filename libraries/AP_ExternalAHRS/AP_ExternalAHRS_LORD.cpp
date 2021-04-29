@@ -178,30 +178,35 @@ void AP_ExternalAHRS_LORD::parseIMU() {
     for (uint8_t i = 0; i < payloadLen; i += currPacket.payload[i]) {
         uint8_t fieldDesc = currPacket.payload[i+1];
         switch (fieldDesc) {
-            case 0x04:
+            case 0x04: {
                 accelNew = populateVector3f(currPacket.payload, i, 9.8);
-                break;
-            case 0x05:
+                }break;
+            case 0x05: {
                 gyroNew = populateVector3f(currPacket.payload, i, 1);
-                break;
-            case 0x06:
+                }break;
+            case 0x06: {
                 magNew = populateVector3f(currPacket.payload, i, 1000);
-                break;
-            case 0x0A: // Quat
+                }break;
+            case 0x0A: { // Quat
                 quatNew = populateQuaternion(currPacket.payload, i);
-                break;
-            case 0x0C: // Euler
+                }break;
+            case 0x0C: { // Euler
 
-                break;
-            case 0x12:
+                }break;
+            case 0x12: {
                 // TOW & GPSWeek
-
-                break;
-            case 0x17:
-                uint32_t tmp = get4ByteField(currPacket.payload, i+2);
-                pressureNew = *reinterpret_cast<float*>(&tmp);
+                uint16_t timestamp_flags = get4ByteField(currPacket.payload, i+14);
+                if (timestamp_flags >= 4) {
+                    auto temp = get8ByteField(currPacket.payload, i + 2);
+                    GPSTOW = *reinterpret_cast<double *>(&temp);
+                    GPSweek = get2ByteField(currPacket.payload, i + 10);
+                }
+                }break;
+            case 0x17: {
+                uint32_t tmp = get4ByteField(currPacket.payload, i + 2);
+                pressureNew = *reinterpret_cast<float *>(&tmp);
                 pressureNew *= 100;
-                break;
+                }break;
         }
     }
 }
@@ -223,6 +228,8 @@ void AP_ExternalAHRS_LORD::handleIMUPacket() {
         WITH_SEMAPHORE(state.sem);
         state.accel = accelNew;
         state.gyro = gyroNew;
+        state.quat = quatNew;            
+        state.have_quaternion = true;
     }
 
     {
@@ -245,6 +252,14 @@ void AP_ExternalAHRS_LORD::handleIMUPacket() {
         AP_ExternalAHRS::baro_data_message_t baro;
         baro.pressure_pa = pressureNew;
         AP::baro().handle_external(baro);
+    }
+
+    {
+        AP_ExternalAHRS::gps_data_message_t gps;
+        gps.gps_week = GPSweek;
+        gps.ms_tow = (uint32_t)(GPSTOW * 1000);
+
+        AP::gps().handle_external(gps);
     }
 }
 
@@ -299,12 +314,17 @@ Vector3f AP_ExternalAHRS_LORD::populateVector3f(const uint8_t* pkt, uint8_t offs
 }
 
 Quaternion AP_ExternalAHRS_LORD::populateQuaternion(const uint8_t* pkt, uint8_t offset) {
-    // uint32_t tmp[4];
-    // for (uint8_t j = 0; j < 3; j++) {
-    //     tmp[j] = get4ByteField(pkt, offset + j * 4 + 2);
-    // }
+    uint32_t tmp[4];
+    for (uint8_t j = 0; j < 3; j++) {
+        tmp[j] = get4ByteField(pkt, offset + j * 4 + 2);
+    }
+
     Quaternion x;
-    x.initialise();
+    x.q1 = *reinterpret_cast<float*>( &tmp[0] );
+    x.q2 = *reinterpret_cast<float*>( &tmp[1] );
+    x.q3 = *reinterpret_cast<float*>( &tmp[2] );
+    x.q4 = *reinterpret_cast<float*>( &tmp[3] );
+
     return x;
 }
 
