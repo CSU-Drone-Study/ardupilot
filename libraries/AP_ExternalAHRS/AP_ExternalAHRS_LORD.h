@@ -75,11 +75,14 @@ private:
     bool IMUPacketReady = false;
     bool GNSSPacketReady = false;
     bool EFDPacketReady = false;
+
     Vector3f accelNew;
     Vector3f gyroNew;
+
+    Quaternion quatNew;
     Vector3f magNew;
     float pressureNew;
-    Quaternion quatNew;
+
     uint16_t GPSweek;
     double GPSTOW;
     double latitudeNew;
@@ -87,6 +90,14 @@ private:
     double mslNew;
     float horizPositionAccNew;
     float vertPositionAccNew;
+    float nedVelNorthNew;
+    float nedVelEastNew;
+    float nedVelDownNew;
+    uint8_t fixTypeNew;
+    uint8_t satsInViewNew;
+    float hDOPNew;
+    float vDOPNew;
+    float horizVelocityAccNew;
     
 
     void readIMU();
@@ -108,6 +119,7 @@ private:
     uint64_t get8ByteField(const uint8_t*,uint8_t);
     uint32_t get4ByteField(const uint8_t*,uint8_t);
     uint16_t get2ByteField(const uint8_t*,uint8_t);
+    uint8_t get1ByteField(const uint8_t* pkt, uint8_t offset);
 };
 
 

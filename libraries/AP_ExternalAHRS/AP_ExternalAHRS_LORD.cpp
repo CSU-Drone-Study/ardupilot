@@ -218,6 +218,7 @@ void AP_ExternalAHRS_LORD::parseGNSS() {
     for (uint8_t i = 0; i < payloadLen; i += currPacket.payload[i]) {
         uint8_t fieldDesc = currPacket.payload[i+1];
         switch (fieldDesc) {
+            //LLH
             case 0x03:
                 // TODO: Check for validation using the "valid flags" at offset 40
                 //  pg 130 of '3dm-cx5-45 dcp manual'
@@ -226,6 +227,26 @@ void AP_ExternalAHRS_LORD::parseGNSS() {
                 mslNew = populateDouble(currPacket.payload, i + 24);
                 horizPositionAccNew = populateFloat(currPacket.payload, i + 32);
                 vertPositionAccNew = populateFloat(currPacket.payload, i + 36);
+                break;
+            //NED
+            case 0x05:
+                nedVelNorthNew = populateFloat(currPacket.payload, i);
+                nedVelEastNew = populateFloat(currPacket.payload, i + 4);
+                nedVelDownNew = populateFloat(currPacket.payload, i + 8);
+                break;
+            //ECEF - TODO: Should we just use speec accuracy from NED cause that's where our velocities come from?
+            case 0x06:
+                horizVelocityAccNew = populateFloat(currPacket.payload, i + 12);
+                break;
+            //DOP
+            case 0x07:
+                hDOPNew = populateFloat(currPacket.payload, i + 8);
+                vDOPNew = populateFloat(currPacket.payload, i + 12);
+                break;
+            //GNSS Fix Info
+            case 0x0B:
+                fixTypeNew = get1ByteField(currPacket.payload, i);
+                satsInViewNew = get1ByteField(currPacket.payload, i + 1);
                 break;
         }
     }
@@ -289,6 +310,15 @@ void AP_ExternalAHRS_LORD::handleGNSSPacket() {
         gps.msl_altitude = mslNew * 1.0e2;
         gps.horizontal_pos_accuracy = horizPositionAccNew;
         gps.vertical_pos_accuracy = vertPositionAccNew;
+        gps.fix_type = fixTypeNew;
+        gps.satellites_in_view = satsInViewNew;
+        gps.horizontal_vel_accuracy = horizVelocityAccNew;
+        gps.vdop = vDOPNew;
+        gps.hdop = hDOPNew;
+        gps.ned_vel_north = nedVelNorthNew;
+        gps.ned_vel_east = nedVelEastNew;
+        gps.ned_vel_down = nedVelDownNew;
+
 
         // FIXME: Update state in line with AP_ExternalAHRS_VectorNav.cpp:340
         if (!state.have_origin) {
@@ -398,6 +428,11 @@ uint16_t AP_ExternalAHRS_LORD::get2ByteField(const uint8_t* pkt, uint8_t offset)
     if (char(1) == 1)
         res = ((res & 0xff) << 8) | ((res & 0xff00) >> 8);
     return res;
+}
+
+//TODO: FILL OUT THIS METHOD APPROPRIATELY
+uint8_t AP_ExternalAHRS_LORD::get1ByteField(const uint8_t* pkt, uint8_t offset) {
+    return pkt[offset];
 }
 
 
