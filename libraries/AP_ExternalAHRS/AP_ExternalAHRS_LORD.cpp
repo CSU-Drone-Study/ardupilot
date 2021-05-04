@@ -195,16 +195,18 @@ void AP_ExternalAHRS_LORD::parseIMU() {
                 }break;
             case 0x12: {
                 // TOW & GPSWeek
-                uint16_t timestamp_flags = get4ByteField(currPacket.payload, i+14);
+                uint16_t timestamp_flags = get4ByteField(currPacket.payload, i+14); //i + 12 maybe?
                 if (timestamp_flags >= 4) {
-                    auto temp = get8ByteField(currPacket.payload, i + 2);
-                    GPSTOW = *reinterpret_cast<double *>(&temp);
+                    // auto temp = get8ByteField(currPacket.payload, i + 2);
+                    // GPSTOW = *reinterpret_cast<double *>(&temp);
+                    GPSTOW = populateDouble(currPacket.payload, i+2);
                     GPSweek = get2ByteField(currPacket.payload, i + 10);
                 }
                 }break;
             case 0x17: {
-                uint32_t tmp = get4ByteField(currPacket.payload, i + 2);
-                pressureNew = *reinterpret_cast<float *>(&tmp);
+                // uint32_t tmp = get4ByteField(currPacket.payload, i + 2);
+                // pressureNew = *reinterpret_cast<float *>(&tmp);
+                pressureNew = populateFloat(currPacket.payload, i+2);
                 pressureNew *= 100;
                 }break;
         }
@@ -335,37 +337,44 @@ void AP_ExternalAHRS_LORD::send_status_report(mavlink_channel_t chan) const
 
 float AP_ExternalAHRS_LORD::populateFloat(const uint8_t* pkt, uint8_t offset) {
     auto tmp = get4ByteField(pkt, offset);
-    return *reinterpret_cast<float*>( &tmp );
+    return *((float*)&tmp);
 }
 
 double AP_ExternalAHRS_LORD::populateDouble(const uint8_t* pkt, uint8_t offset) {
     auto tmp = get8ByteField(pkt, offset);
-    return *reinterpret_cast<double*>( &tmp );
+    return *((double*) &tmp );
 }
 
 Vector3f AP_ExternalAHRS_LORD::populateVector3f(const uint8_t* pkt, uint8_t offset, float multiplier) {
     Vector3f data;
-    uint32_t tmp[3];
-    for (uint8_t j = 0; j < 3; j++) {
-        tmp[j] = get4ByteField(pkt, offset + j * 4 + 2);
-    }
-    data.x = *reinterpret_cast<float*>( &tmp[0] );
-    data.y = *reinterpret_cast<float*>( &tmp[1] );
-    data.z = *reinterpret_cast<float*>( &tmp[2] );
+    data.x = populateFloat(pkt, offset + 2);
+    data.x = populateFloat(pkt, offset + 6);
+    data.y = populateFloat(pkt, offset + 10);
+    // uint32_t tmp[3];
+    // for (uint8_t j = 0; j < 3; j++) {
+    //     tmp[j] = get4ByteField(pkt, offset + j * 4 + 2);
+    // }
+    // data.x = *reinterpret_cast<float*>( &tmp[0] );
+    // data.y = *reinterpret_cast<float*>( &tmp[1] );
+    // data.z = *reinterpret_cast<float*>( &tmp[2] );
     return data * multiplier;
 }
 
 Quaternion AP_ExternalAHRS_LORD::populateQuaternion(const uint8_t* pkt, uint8_t offset) {
-    uint32_t tmp[4];
-    for (uint8_t j = 0; j < 3; j++) {
-        tmp[j] = get4ByteField(pkt, offset + j * 4 + 2);
-    }
+    // uint32_t tmp[4];
+    // for (uint8_t j = 0; j < 3; j++) {
+    //     tmp[j] = get4ByteField(pkt, offset + j * 4 + 2);
+    // }
 
     Quaternion x;
-    x.q1 = *reinterpret_cast<float*>( &tmp[0] );
-    x.q2 = *reinterpret_cast<float*>( &tmp[1] );
-    x.q3 = *reinterpret_cast<float*>( &tmp[2] );
-    x.q4 = *reinterpret_cast<float*>( &tmp[3] );
+    x.q1 = populateFloat(pkt, offset + 2);
+    x.q1 = populateFloat(pkt, offset + 6);
+    x.q1 = populateFloat(pkt, offset + 10);
+    x.q1 = populateFloat(pkt, offset + 14);
+    // x.q1 = *reinterpret_cast<float*>( &tmp[0] );
+    // x.q2 = *reinterpret_cast<float*>( &tmp[1] );
+    // x.q3 = *reinterpret_cast<float*>( &tmp[2] );
+    // x.q4 = *reinterpret_cast<float*>( &tmp[3] );
 
     return x;
 }
