@@ -46,11 +46,22 @@ void AP_GPS_ExternalAHRS::handle_external(const AP_ExternalAHRS::gps_data_messag
 
     state.time_week = pkt.gps_week;
     state.time_week_ms = pkt.ms_tow;
+
+    // CHANGED TO LORD VALUES
+    //if (pkt.fix_type == 0) {
+    //    state.status = AP_GPS::NO_FIX;
+    //} else {
+    //    state.status = (AP_GPS::GPS_Status)pkt.fix_type;
+    //}
+
     if (pkt.fix_type == 0) {
-        state.status = AP_GPS::NO_FIX;
+        state.status = AP_GPS::GPS_OK_FIX_3D;
+    } else if (pkt.fix_type == 1) {
+        state.status = AP_GPS::GPS_OK_FIX_2D;
     } else {
-        state.status = (AP_GPS::GPS_Status)pkt.fix_type;
+        state.status = AP_GPS::NO_FIX;
     }
+
     state.num_sats = pkt.satellites_in_view;
 
     Location loc = {};
