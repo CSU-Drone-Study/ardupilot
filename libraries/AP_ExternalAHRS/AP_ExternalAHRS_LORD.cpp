@@ -315,7 +315,7 @@ Vector3f AP_ExternalAHRS_LORD::populateVector3f(const uint8_t* pkt, uint8_t offs
 
 Quaternion AP_ExternalAHRS_LORD::populateQuaternion(const uint8_t* pkt, uint8_t offset) {
     uint32_t tmp[4];
-    for (uint8_t j = 0; j < 3; j++) {
+    for (uint8_t j = 0; j < 4; j++) {
         tmp[j] = get4ByteField(pkt, offset + j * 4 + 2);
     }
 
