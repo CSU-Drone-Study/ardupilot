@@ -717,7 +717,7 @@ bool AP_SerialManager::protocol_match(enum SerialProtocol protocol1, enum Serial
         ((protocol2 == SerialProtocol_GPS) || (protocol2 == SerialProtocol_GPS2))) {
         return true;
     }
-
+    
     return false;
 }
 
