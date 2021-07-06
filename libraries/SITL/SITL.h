@@ -138,6 +138,12 @@ public:
         GPS_TYPE_SBP2   = 9,
     };
 
+    enum GPSHeading {
+        GPS_HEADING_NONE = 0,
+        GPS_HEADING_HDT  = 1,
+        GPS_HEADING_THS  = 2,
+    };
+
     struct sitl_fdm state;
 
     // loop update rate in Hz
@@ -409,6 +415,9 @@ public:
     RichenPower richenpower_sim;
     IntelligentEnergy24 ie24_sim;
 
+    // ESC telemetry
+    AP_Int8 esc_telem;
+
     struct {
         // LED state, for serial LED emulation
         struct {
@@ -455,6 +464,9 @@ public:
     // gyro and accel fail masks
     AP_Int8 gyro_fail_mask;
     AP_Int8 accel_fail_mask;
+
+    // Sailboat sim only
+    AP_Int8 sail_type;
 
 };
 

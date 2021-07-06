@@ -529,7 +529,12 @@ private:
 
     // tailsitter control variables
     struct {
-        AP_Int8 transition_angle;
+        // transition from VTOL to forward
+        AP_Int8 transition_angle_fw;
+        AP_Float transition_rate_fw;
+        // transition from forward to VTOL
+        AP_Int8 transition_angle_vtol;
+        AP_Float transition_rate_vtol;
         AP_Int8 input_type;
         AP_Int8 input_mask;
         AP_Int8 input_mask_chan;
@@ -545,6 +550,9 @@ private:
         AP_Int16 gain_scaling_mask;
         AP_Float disk_loading;
     } tailsitter;
+
+    // return the transition_angle_vtol value
+    int8_t get_tailsitter_transition_angle_vtol(void) const;
 
     // tailsitter speed scaler
     float last_spd_scaler = 1.0f; // used to slew rate limiting with TAILSITTER_GSCL_ATT_THR option
@@ -584,9 +592,6 @@ private:
 
     // set altitude target to current altitude
     void set_alt_target_current(void);
-    
-    // adjust altitude target smoothly
-    void adjust_alt_target(float target_cm);
 
     // additional options
     AP_Int32 options;

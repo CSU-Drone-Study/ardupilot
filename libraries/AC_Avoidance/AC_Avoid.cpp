@@ -78,7 +78,7 @@ const AP_Param::GroupInfo AC_Avoid::var_info[] = {
     // @Units: m/s
     // @Range: 0 2
     // @User: Standard
-    AP_GROUPINFO("BACKUP_SPD", 6, AC_Avoid, _backup_speed_max, 0.5f),
+    AP_GROUPINFO("BACKUP_SPD", 6, AC_Avoid, _backup_speed_max, 0.75f),
 
     // @Param: ALT_MIN
     // @DisplayName: Avoidance minimum altitude
@@ -86,7 +86,7 @@ const AP_Param::GroupInfo AC_Avoid::var_info[] = {
     // @Units: m
     // @Range: 0 6
     // @User: Standard
-    AP_GROUPINFO("ALT_MIN", 7, AC_Avoid, _alt_min, 2.0f),
+    AP_GROUPINFO("ALT_MIN", 7, AC_Avoid, _alt_min, 0.0f),
 
     // @Param: ACCEL_MAX
     // @DisplayName: Avoidance maximum acceleration
@@ -240,6 +240,23 @@ void AC_Avoid::adjust_velocity(Vector3f &desired_vel_cms, bool &backing_up, floa
 
     if (desired_vel_cms_original != desired_vel_cms) {
         _last_limit_time = AP_HAL::millis();
+    }
+
+    if (limits_active()) {
+        // log at not more than 10hz (adjust_velocity method can be potentially called at 400hz!)
+        uint32_t now = AP_HAL::millis();
+        if ((now - _last_log_ms) > 100) {
+            _last_log_ms = now;
+            Write_SimpleAvoidance(true, desired_vel_cms_original, desired_vel_cms, backing_up);
+        }
+    } else {
+        // avoidance isn't active anymore
+        // log once so that it registers in logs
+        if (_last_log_ms) {
+            Write_SimpleAvoidance(false, desired_vel_cms_original, desired_vel_cms, backing_up);
+            // this makes sure logging won't run again till it is active
+            _last_log_ms = 0;
+        }
     }
 }
 
