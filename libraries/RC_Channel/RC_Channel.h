@@ -205,6 +205,7 @@ public:
         EKF_LANE_SWITCH =    103, // trigger lane switch attempt
         EKF_YAW_RESET =      104, // trigger yaw reset attempt
         GPS_DISABLE_YAW =    105, // disable GPS yaw for testing
+        DISABLE_AIRSPEED_USE = 106, // equivalent to AIRSPEED_USE 0
         // if you add something here, make sure to update the documentation of the parameter in RC_Channel.cpp!
         // also, if you add an option >255, you will need to fix duplicate_options_exist
 
@@ -257,6 +258,11 @@ public:
 #if !HAL_MINIMIZE_FEATURES
     const char *string_for_aux_function(AUX_FUNC function) const;
 #endif
+    // pwm value under which we consider that Radio value is invalid
+    static const uint16_t RC_MIN_LIMIT_PWM = 900;
+    // pwm value above which we consider that Radio value is invalid
+    static const uint16_t RC_MAX_LIMIT_PWM = 2200;
+
     // pwm value above which we condider that Radio min value is invalid
     static const uint16_t RC_CALIB_MIN_LIMIT_PWM = 1300;
     // pwm value under which we condider that Radio max value is invalid
@@ -399,6 +405,10 @@ public:
     static void set_override(const uint8_t chan, const int16_t value, const uint32_t timestamp_ms = 0); // set a channels override value
     static bool has_active_overrides(void);                            // returns true if there are overrides applied that are valid
 
+    // returns a mask indicating which channels have overrides.  Bit 0
+    // is RC channel 1.  Beware this is not a cheap call.
+    static uint16_t get_override_mask();
+
     class RC_Channel *find_channel_for_option(const RC_Channel::aux_func_t option);
     bool duplicate_options_exist();
     RC_Channel::AuxSwitchPos get_channel_pos(const uint8_t rcmapchan) const;
@@ -502,6 +512,13 @@ public:
         return rc_channel(0)->run_aux_function(ch_option, pos, source);
     }
 
+    // check if flight mode channel is assigned RC option
+    // return true if assigned
+    bool flight_mode_channel_conflicts_with_rc_option() const;
+
+    // flight_mode_channel_number must be overridden in vehicle specific code
+    virtual int8_t flight_mode_channel_number() const = 0;
+
 protected:
 
     enum class Option {
@@ -533,9 +550,7 @@ private:
     AP_Int32  _options;
     AP_Int32  _protocols;
 
-    // flight_mode_channel_number must be overridden in vehicle specific code
-    virtual int8_t flight_mode_channel_number() const = 0;
-    RC_Channel *flight_mode_channel();
+    RC_Channel *flight_mode_channel() const;
 
     // Allow override by default at start
     bool _gcs_overrides_enabled = true;

@@ -232,6 +232,7 @@ void NavEKF3_core::InitialiseVariables()
     hgtTimeout = true;
     tasTimeout = true;
     badIMUdata = false;
+    vertVelVarClipCounter = 0;
     finalInflightYawInit = false;
     dtIMUavg = ins.get_loop_delta_t();
     dtEkfAvg = EKF_TARGET_DT;
@@ -268,15 +269,11 @@ void NavEKF3_core::InitialiseVariables()
     inhibitDelAngBiasStates = true;
     gndOffsetValid =  false;
     validOrigin = false;
-    takeoffExpectedSet_ms = 0;
-    expectTakeoff = false;
-    touchdownExpectedSet_ms = 0;
-    expectGndEffectTakeoff = false;
-    expectGndEffectTouchdown = false;
     gpsSpdAccuracy = 0.0f;
     gpsPosAccuracy = 0.0f;
     gpsHgtAccuracy = 0.0f;
     baroHgtOffset = 0.0f;
+    rngOnGnd = 0.05f;
     yawResetAngle = 0.0f;
     lastYawReset_ms = 0;
     tiltErrorVariance = sq(M_2PI);
@@ -345,7 +342,6 @@ void NavEKF3_core::InitialiseVariables()
     lastRngBcnPassTime_ms = 0;
     rngBcnTestRatio = 0.0f;
     rngBcnHealth = false;
-    rngBcnTimeout = true;
     varInnovRngBcn = 0.0f;
     innovRngBcn = 0.0f;
     memset(&lastTimeRngBcn_ms, 0, sizeof(lastTimeRngBcn_ms));
@@ -458,7 +454,7 @@ void NavEKF3_core::InitialiseVariablesMag()
     mag_state.q0 = 1;
     mag_state.DCM.identity();
     inhibitMagStates = true;
-    magSelectIndex = 0;
+    magSelectIndex = dal.compass().get_first_usable();
     lastMagOffsetsValid = false;
     magStateResetRequest = false;
     magStateInitComplete = false;
@@ -900,10 +896,10 @@ void NavEKF3_core::calcOutputStates()
 
     // Detect fixed wing launch acceleration using latest data from IMU to enable early startup of filter functions
     // that use launch acceleration to detect start of flight
-    if (!inFlight && !expectTakeoff && assume_zero_sideslip()) {
+    if (!inFlight && !dal.get_takeoff_expected() && assume_zero_sideslip()) {
         const float launchDelVel = imuDataNew.delVel.x + GRAVITY_MSS * imuDataNew.delVelDT * Tbn_temp.c.x;
         if (launchDelVel > GRAVITY_MSS * imuDataNew.delVelDT) {
-            setTakeoffExpected(true);
+            dal.set_takeoff_expected();
         }
     }
 
@@ -1720,6 +1716,10 @@ void NavEKF3_core::CovariancePrediction(Vector3f *rotVarVecPtr)
     // constrain values to prevent ill-conditioning
     ConstrainVariances();
 
+    if (vertVelVarClipCounter > 0) {
+        vertVelVarClipCounter--;
+    }
+
     calcTiltErrorVariance();
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
@@ -1804,9 +1804,34 @@ void NavEKF3_core::ForceSymmetry()
 void NavEKF3_core::ConstrainVariances()
 {
     for (uint8_t i=0; i<=3; i++) P[i][i] = constrain_float(P[i][i],0.0f,1.0f); // attitude error
-    for (uint8_t i=4; i<=6; i++) P[i][i] = constrain_float(P[i][i],0.0f,1.0e3f); // velocities
-    for (uint8_t i=7; i<=8; i++) P[i][i] = constrain_float(P[i][i],0.0f,1.0e6f);
-    P[9][9] = constrain_float(P[9][9],0.0f,1.0e6f); // vertical position
+    for (uint8_t i=4; i<=5; i++) P[i][i] = constrain_float(P[i][i], VEL_STATE_MIN_VARIANCE, 1.0e3f); // NE velocity
+
+    // check for collapse of the vertical velocity variance
+    if (P[6][6] < VEL_STATE_MIN_VARIANCE) {
+        P[6][6] = VEL_STATE_MIN_VARIANCE;
+        // this counter is decremented by 1 each prediction cycle in CovariancePrediction
+        // resulting in the count from each clip event fading to zero over 1 second which
+        // is sufficient to capture collapse from fusion of the lowest update rate sensor
+        vertVelVarClipCounter += EKF_TARGET_RATE_HZ;
+        if (vertVelVarClipCounter > VERT_VEL_VAR_CLIP_COUNT_LIM) {
+            // reset the corresponding covariances
+            zeroRows(P,6,6);
+            zeroCols(P,6,6);
+
+            // set the variances to the measurement variance
+        #if EK3_FEATURE_EXTERNAL_NAV
+            if (useExtNavVel) {
+                P[6][6] = sq(extNavVelDelayed.err);
+            } else
+        #endif
+            {
+                P[6][6] = sq(frontend->_gpsVertVelNoise);
+            }
+            vertVelVarClipCounter = 0;
+        }
+    }
+
+    for (uint8_t i=7; i<=9; i++) P[i][i] = constrain_float(P[i][i], POS_STATE_MIN_VARIANCE, 1.0e6f); // NED position
 
     if (!inhibitDelAngBiasStates) {
         for (uint8_t i=10; i<=12; i++) P[i][i] = constrain_float(P[i][i],0.0f,sq(0.175f * dtEkfAvg));

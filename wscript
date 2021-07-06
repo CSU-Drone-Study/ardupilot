@@ -82,6 +82,11 @@ def options(opt):
         default=False,
         help='Configure as debug variant.')
 
+    g.add_option('--coverage',
+                 action='store_true',
+                 default=False,
+                 help='Configure coverage flags.')
+
     g.add_option('--Werror',
         action='store_true',
         default=False,
@@ -252,6 +257,16 @@ configuration in order to save typing.
         default=False,
         help='Force a static build')
 
+    g.add_option('--postype-single',
+        action='store_true',
+        default=False,
+        help='force single precision postype_t')
+    
+    g.add_option('--extra-hwdef',
+	    action='store',
+	    default=None,
+	    help='Extra hwdef.dat file for custom build.')
+
 def _collect_autoconfig_files(cfg):
     for m in sys.modules.values():
         paths = []
@@ -284,6 +299,7 @@ def configure(cfg):
         
     cfg.env.BOARD = cfg.options.board
     cfg.env.DEBUG = cfg.options.debug
+    cfg.env.COVERAGE = cfg.options.coverage
     cfg.env.AUTOCONFIG = cfg.options.autoconfig
 
     _set_build_context_variant(cfg.env.BOARD)
@@ -291,10 +307,15 @@ def configure(cfg):
 
     cfg.env.BOARD = cfg.options.board
     cfg.env.DEBUG = cfg.options.debug
+    cfg.env.COVERAGE = cfg.options.coverage
     cfg.env.ENABLE_ASSERTS = cfg.options.enable_asserts
     cfg.env.BOOTLOADER = cfg.options.bootloader
     cfg.env.ENABLE_MALLOC_GUARD = cfg.options.enable_malloc_guard
     cfg.env.ENABLE_STATS = cfg.options.enable_stats
+
+    cfg.env.HWDEF_EXTRA = cfg.options.extra_hwdef
+    if cfg.env.HWDEF_EXTRA:
+        cfg.env.HWDEF_EXTRA = os.path.abspath(cfg.env.HWDEF_EXTRA)
 
     cfg.env.OPTIONS = cfg.options.__dict__
 
@@ -358,6 +379,18 @@ def configure(cfg):
 
     cfg.start_msg('Scripting runtime checks')
     if cfg.options.scripting_checks:
+        cfg.end_msg('enabled')
+    else:
+        cfg.end_msg('disabled', color='YELLOW')
+
+    cfg.start_msg('Debug build')
+    if cfg.env.DEBUG:
+        cfg.end_msg('enabled')
+    else:
+        cfg.end_msg('disabled', color='YELLOW')
+
+    cfg.start_msg('Coverage build')
+    if cfg.env.COVERAGE:
         cfg.end_msg('enabled')
     else:
         cfg.end_msg('disabled', color='YELLOW')

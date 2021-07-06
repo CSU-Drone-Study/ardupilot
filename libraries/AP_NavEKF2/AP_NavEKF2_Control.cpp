@@ -422,28 +422,28 @@ bool NavEKF2_core::assume_zero_sideslip(void) const
     return dal.get_fly_forward() && dal.get_vehicle_class() != AP_DAL::VehicleClass::GROUND;
 }
 
-// set the LLH location of the filters NED origin
+// sets the local NED origin using a LLH location (latitude, longitude, height)
+// returns false if absolute aiding and GPS is being used or if the origin is already set
 bool NavEKF2_core::setOriginLLH(const Location &loc)
 {
     if (PV_AidingMode == AID_ABSOLUTE && !extNavUsedForPos) {
+        // reject attempts to set the origin if GPS is being used
         return false;
     }
-    EKF_origin = loc;
-    ekfGpsRefHgt = (double)0.01 * (double)EKF_origin.alt;
-    // define Earth rotation vector in the NED navigation frame at the origin
-    calcEarthRateNED(earthRateNED, loc.lat);
-    validOrigin = true;
-    return true;
+
+    return setOrigin(loc);
 }
 
-// Set the NED origin to be used until the next filter reset
-void NavEKF2_core::setOrigin(const Location &loc)
+// sets the local NED origin using a LLH location (latitude, longitude, height)
+// returns false if the origin has already been set
+bool NavEKF2_core::setOrigin(const Location &loc)
 {
-    EKF_origin = loc;
-    // if flying, correct for height change from takeoff so that the origin is at field elevation
-    if (inFlight) {
-        EKF_origin.alt += (int32_t)(100.0f * stateStruct.position.z);
+    // if the origin is valid reject setting a new origin
+    if (validOrigin) {
+        return false;
     }
+
+    EKF_origin = loc;
     ekfGpsRefHgt = (double)0.01 * (double)EKF_origin.alt;
     // define Earth rotation vector in the NED navigation frame at the origin
     calcEarthRateNED(earthRateNED, EKF_origin.lat);
@@ -453,6 +453,8 @@ void NavEKF2_core::setOrigin(const Location &loc)
     // put origin in frontend as well to ensure it stays in sync between lanes
     frontend->common_EKF_origin = EKF_origin;
     frontend->common_origin_valid = true;
+
+    return true;
 }
 
 // record a yaw reset event
@@ -512,8 +514,8 @@ void  NavEKF2_core::updateFilterStatus(void)
     filterStatus.flags.pred_horiz_pos_rel = ((optFlowNavPossible || gpsNavPossible) && filterHealthy) || filterStatus.flags.horiz_pos_rel; // we should be able to estimate a relative position when we enter flight mode
     filterStatus.flags.pred_horiz_pos_abs = (gpsNavPossible && filterHealthy) || filterStatus.flags.horiz_pos_abs; // we should be able to estimate an absolute position when we enter flight mode
     filterStatus.flags.takeoff_detected = takeOffDetected; // takeoff for optical flow navigation has been detected
-    filterStatus.flags.takeoff = expectGndEffectTakeoff; // The EKF has been told to expect takeoff and is in a ground effect mitigation mode
-    filterStatus.flags.touchdown = expectGndEffectTouchdown; // The EKF has been told to detect touchdown and is in a ground effect mitigation mode
+    filterStatus.flags.takeoff = dal.get_takeoff_expected(); // The EKF has been told to expect takeoff and is in a ground effect mitigation mode
+    filterStatus.flags.touchdown = dal.get_touchdown_expected(); // The EKF has been told to detect touchdown and is in a ground effect mitigation mode
     filterStatus.flags.using_gps = ((imuSampleTime_ms - lastPosPassTime_ms) < 4000) && (PV_AidingMode == AID_ABSOLUTE);
     filterStatus.flags.gps_glitching = !gpsAccuracyGood && (PV_AidingMode == AID_ABSOLUTE) && !extNavUsedForPos; // GPS glitching is affecting navigation accuracy
     filterStatus.flags.gps_quality_good = gpsGoodToAlign;

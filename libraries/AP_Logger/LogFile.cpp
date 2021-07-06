@@ -149,20 +149,28 @@ void AP_Logger::Write_RCIN(void)
     };
     WriteBlock(&pkt, sizeof(pkt));
 
+    const uint16_t override_mask = rc().get_override_mask();
+
     // don't waste logging bandwidth if we haven't seen non-zero
     // channels 15/16:
-    if (!seen_nonzero_rcin15_or_rcin16) {
-        if (!values[14] && !values[15]) {
-            return;
+    if (!should_log_rcin2) {
+        if (values[14] || values[15]) {
+            should_log_rcin2 = true;
+        } else if (override_mask != 0) {
+            should_log_rcin2 = true;
         }
-        seen_nonzero_rcin15_or_rcin16 = true;
+    }
+
+    if (!should_log_rcin2) {
+        return;
     }
 
     const struct log_RCIN2 pkt2{
         LOG_PACKET_HEADER_INIT(LOG_RCIN2_MSG),
         time_us       : AP_HAL::micros64(),
         chan15         : values[14],
-        chan16         : values[15]
+        chan16         : values[15],
+        override_mask  : override_mask,
     };
     WriteBlock(&pkt2, sizeof(pkt2));
 }
@@ -256,11 +264,13 @@ bool AP_Logger_Backend::Write_Mission_Cmd(const AP_Mission &mission,
     return WriteBlock(&pkt, sizeof(pkt));
 }
 
+#if HAL_MISSION_ENABLED
 bool AP_Logger_Backend::Write_EntireMission()
 {
     // kick off asynchronous write:
     return _startup_messagewriter->writeentiremission();
 }
+#endif
 
 // Write a text message to the log
 bool AP_Logger_Backend::Write_Message(const char *message)

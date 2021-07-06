@@ -160,8 +160,7 @@ public:
 
     // set the latitude and longitude and height used to set the NED origin
     // All NED positions calculated by the filter will be relative to this location
-    // The origin cannot be set if the filter is in a flight mode (eg vehicle armed)
-    // Returns false if the filter has rejected the attempt to set the origin
+    // returns false if absolute aiding and GPS is being used or if the origin is already set
     bool setOriginLLH(const Location &loc);
 
     // return estimated height above ground level
@@ -206,14 +205,6 @@ public:
         beaconPosNED : beacon NED position (m)
     */
     bool getRangeBeaconDebug(uint8_t &ID, float &rng, float &innov, float &innovVar, float &testRatio, Vector3f &beaconPosNED, float &offsetHigh, float &offsetLow);
-
-    // called by vehicle code to specify that a takeoff is happening
-    // causes the EKF to compensate for expected barometer errors due to ground effect
-    void setTakeoffExpected(bool val);
-
-    // called by vehicle code to specify that a touchdown is expected to happen
-    // causes the EKF to compensate for expected barometer errors due to ground effect
-    void setTouchdownExpected(bool val);
 
     // Set to true if the terrain underneath is stable enough to be used as a height reference
     // in combination with a range finder. Set to false if the terrain underneath the vehicle
@@ -677,14 +668,10 @@ private:
     // Control reset of yaw and magnetic field states
     void controlMagYawReset();
 
-    // Set the NED origin to be used until the next filter reset
-    void setOrigin(const Location &loc);
-
-    // determine if a takeoff is expected so that we can compensate for expected barometer errors due to ground effect
-    bool getTakeoffExpected();
-
-    // determine if a touchdown is expected so that we can compensate for expected barometer errors due to ground effect
-    bool getTouchdownExpected();
+    // set the latitude and longitude and height used to set the NED origin
+    // All NED positions calculated by the filter will be relative to this location
+    // returns false if the origin has already been set
+    bool setOrigin(const Location &loc);
 
     // Assess GPS data quality and set gpsGoodToAlign if good enough to align the EKF
     void calcGpsGoodToAlign(void);
@@ -1068,10 +1055,6 @@ private:
     uint32_t timeAtArming_ms;       // time in msec that the vehicle armed
 
     // baro ground effect
-    bool expectGndEffectTakeoff;      // external state from ArduCopter - takeoff expected
-    uint32_t takeoffExpectedSet_ms;   // system time at which expectGndEffectTakeoff was set
-    bool expectGndEffectTouchdown;    // external state from ArduCopter - touchdown expected
-    uint32_t touchdownExpectedSet_ms; // system time at which expectGndEffectTouchdown was set
     float meaHgtAtTakeOff;            // height measured at commencement of takeoff
 
     // control of post takeoff magnetic field and heading resets

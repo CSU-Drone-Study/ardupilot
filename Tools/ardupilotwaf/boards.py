@@ -164,6 +164,19 @@ class Board:
             env.DEFINES.update(
                 HAL_DEBUG_BUILD = 1,
             )
+        if cfg.env.COVERAGE:
+            env.CFLAGS += [
+                '-fprofile-arcs',
+                '-ftest-coverage',
+            ]
+            env.CXXFLAGS += [
+                '-fprofile-arcs',
+                '-ftest-coverage',
+            ]
+            env.LINKFLAGS += [
+                '-lgcov',
+                '-coverage',
+            ]
 
         if cfg.options.bootloader:
             # don't let bootloaders try and pull scripting in
@@ -317,6 +330,9 @@ class Board:
         if cfg.options.disable_ekf3:
             env.CXXFLAGS += ['-DHAL_NAVEKF3_AVAILABLE=0']
 
+        if cfg.options.postype_single:
+            env.CXXFLAGS += ['-DHAL_WITH_POSTYPE_DOUBLE=0']
+            
         if cfg.options.osd or cfg.options.osd_fonts:
             env.CXXFLAGS += ['-DOSD_ENABLED=1', '-DHAL_MSP_ENABLED=1']
 
@@ -544,7 +560,11 @@ class sitl_periph_gps(sitl):
             HAL_RAM_RESERVE_START = 0,
             APJ_BOARD_ID = 100,
             HAL_NO_GCS = 1,
-            HAL_NO_LOGGING = 1,
+            HAL_LOGGING_ENABLED = 0,
+            HAL_LOGGING_MAVLINK_ENABLED = 0,
+            HAL_MISSION_ENABLED = 0,
+            HAL_RALLY_ENABLED = 0,
+            HAL_SCHEDULER_ENABLED = 0,
         )
         # libcanard is written for 32bit platforms
         env.CXXFLAGS += [

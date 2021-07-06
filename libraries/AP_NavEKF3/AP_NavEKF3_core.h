@@ -80,6 +80,15 @@
 // number of continuous valid GSF yaw estimates required to confirm valid hostory
 #define GSF_YAW_VALID_HISTORY_THRESHOLD 5
 
+// minimum variances allowed for velocity and position states
+#define VEL_STATE_MIN_VARIANCE 1E-4f
+#define POS_STATE_MIN_VARIANCE 1E-4f
+
+// maximum number of times the vertical velocity variance can hit the lower limit before the
+// associated states, variances and covariances are reset
+#define EKF_TARGET_RATE_HZ uint32_t(1.0f / EKF_TARGET_DT)
+#define VERT_VEL_VAR_CLIP_COUNT_LIM (5 * EKF_TARGET_RATE_HZ)
+
 class NavEKF3_core : public NavEKF_core_common
 {
 public:
@@ -176,8 +185,7 @@ public:
 
     // set the latitude and longitude and height used to set the NED origin
     // All NED positions calculated by the filter will be relative to this location
-    // The origin cannot be set if the filter is in a flight mode (eg vehicle armed)
-    // Returns false if the filter has rejected the attempt to set the origin
+    // returns false if Absolute aiding and GPS is being used or if the origin is already set
     bool setOriginLLH(const Location &loc);
 
     // return estimated height above ground level
@@ -291,15 +299,6 @@ public:
     */
     void writeExtNavVelData(const Vector3f &vel, float err, uint32_t timeStamp_ms, uint16_t delay_ms);
 
-    // called by vehicle code to specify that a takeoff is happening
-    // causes the EKF to compensate for expected barometer errors due to rotor wash ground interaction
-    // causes the EKF to start the EKF-GSF yaw estimator
-    void setTakeoffExpected(bool val);
-
-    // called by vehicle code to specify that a touchdown is expected to happen
-    // causes the EKF to compensate for expected barometer errors due to ground effect
-    void setTouchdownExpected(bool val);
-
     // Set to true if the terrain underneath is stable enough to be used as a height reference
     // in combination with a range finder. Set to false if the terrain underneath the vehicle
     // cannot be used as a height reference. Use to prevent range finder operation otherwise
@@ -318,11 +317,6 @@ public:
      7 = filter is not initialised
     */
     void getFilterFaults(uint16_t &faults) const;
-
-    /*
-    return filter gps quality check status
-    */
-    void getFilterGpsStatus(nav_gps_status &status) const;
 
     /*
     Return a filter function status that indicates:
@@ -795,10 +789,10 @@ private:
     void SelectBodyOdomFusion();
 
     // Estimate terrain offset using a single state EKF
-    void EstimateTerrainOffset();
+    void EstimateTerrainOffset(const of_elements &ofDataDelayed);
 
     // fuse optical flow measurements into the main filter
-    void FuseOptFlow();
+    void FuseOptFlow(const of_elements &ofDataDelayed);
 
     // Control filter mode changes
     void controlFilterModes();
@@ -820,17 +814,10 @@ private:
     // Control reset of yaw and magnetic field states
     void controlMagYawReset();
 
-    // Set the NED origin to be used until the next filter reset
-    void setOrigin(const Location &loc);
-
-    // update and return the status that indicates takeoff is expected so that we can compensate for expected
-    // barometer errors due to rotor-wash ground interaction and start the EKF-GSF yaw estimator prior to
-    // takeoff movement
-    bool updateTakeoffExpected();
-
-    // update and return the status that indicates touchdown is expected so that we can compensate for expected
-    // barometer errors due to rotor-wash ground interaction
-    bool updateTouchdownExpected();
+    // set the latitude and longitude and height used to set the NED origin
+    // All NED positions calculated by the filter will be relative to this location
+    // returns false if the origin has already been set
+    bool setOrigin(const Location &loc);
 
     // Assess GPS data quality and set gpsGoodToAlign
     void calcGpsGoodToAlign(void);
@@ -959,6 +946,7 @@ private:
     bool magTimeout;                // boolean true if magnetometer measurements have failed for too long and have timed out
     bool tasTimeout;                // boolean true if true airspeed measurements have failed for too long and have timed out
     bool badIMUdata;                // boolean true if the bad IMU data is detected
+    uint32_t vertVelVarClipCounter; // counter used to control reset of vertical velocity variance following collapse against the lower limit
 
     float gpsNoiseScaler;           // Used to scale the  GPS measurement noise and consistency gates to compensate for operation with small satellite counts
     Matrix24 P;                     // covariance matrix
@@ -1145,7 +1133,6 @@ private:
     // variables added for optical flow fusion
     EKF_obs_buffer_t<of_elements> storedOF;    // OF data buffer
     of_elements ofDataNew;          // OF data at the current time horizon
-    of_elements ofDataDelayed;      // OF data at the fusion time horizon
     bool flowDataValid;             // true while optical flow data is still fresh
     Vector2f auxFlowObsInnov;       // optical flow rate innovation from 1-state terrain offset estimator
     uint32_t flowValidMeaTime_ms;   // time stamp from latest valid flow measurement (msec)
@@ -1229,7 +1216,6 @@ private:
     uint32_t lastRngBcnPassTime_ms;     // time stamp when the range beacon measurement last passed innovation consistency checks (msec)
     float rngBcnTestRatio;              // Innovation test ratio for range beacon measurements
     bool rngBcnHealth;                  // boolean true if range beacon measurements have passed innovation consistency check
-    bool rngBcnTimeout;                 // boolean true if range beacon measurements have failed innovation consistency checks for too long
     float varInnovRngBcn;               // range beacon observation innovation variance (m^2)
     float innovRngBcn;                  // range beacon observation innovation (m)
     uint32_t lastTimeRngBcn_ms[4];      // last time we received a range beacon measurement (msec)
@@ -1296,14 +1282,7 @@ private:
     uint32_t timeAtArming_ms;       // time in msec that the vehicle armed
 
     // baro ground effect
-    bool expectGndEffectTakeoff;      // external state - takeoff expected in VTOL flight
-    bool expectGndEffectTouchdown;    // external state - touchdown expected in VTOL flight
-    uint32_t touchdownExpectedSet_ms; // system time at which expectGndEffectTouchdown was set
     float meaHgtAtTakeOff;            // height measured at commencement of takeoff
-
-    // takeoff preparation used to start EKF-GSF yaw estimator and mitigate rotor-wash ground interaction Baro errors
-    uint32_t takeoffExpectedSet_ms;   // system time at which expectTakeoff was set
-    bool expectTakeoff;               // external state from vehicle conrol code - takeoff expected
 
     // control of post takeoff magnetic field and heading resets
     bool finalInflightYawInit;      // true when the final post takeoff initialisation of yaw angle has been performed
@@ -1374,18 +1353,21 @@ private:
     } faultStatus;
 
     // flags indicating which GPS quality checks are failing
-    struct {
-        bool bad_sAcc:1;
-        bool bad_hAcc:1;
-        bool bad_vAcc:1;
-        bool bad_yaw:1;
-        bool bad_sats:1;
-        bool bad_VZ:1;
-        bool bad_horiz_drift:1;
-        bool bad_hdop:1;
-        bool bad_vert_vel:1;
-        bool bad_fix:1;
-        bool bad_horiz_vel:1;
+    union {
+        struct {
+            bool bad_sAcc:1;
+            bool bad_hAcc:1;
+            bool bad_vAcc:1;
+            bool bad_yaw:1;
+            bool bad_sats:1;
+            bool bad_VZ:1;
+            bool bad_horiz_drift:1;
+            bool bad_hdop:1;
+            bool bad_vert_vel:1;
+            bool bad_fix:1;
+            bool bad_horiz_vel:1;
+        };
+        uint16_t value;
     } gpsCheckStatus;
 
     // states held by magnetometer fusion across time steps

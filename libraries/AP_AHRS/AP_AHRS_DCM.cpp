@@ -116,6 +116,9 @@ AP_AHRS_DCM::update(bool skip_ins_update)
     update_AOA_SSA();
 
     backup_attitude();
+
+    // update takeoff/touchdown flags
+    update_flags();
 }
 
 /*
@@ -234,12 +237,6 @@ AP_AHRS_DCM::reset(bool recover_eulers)
         load_watchdog_home();
     }
     _last_startup_ms = AP_HAL::millis();
-}
-
-// reset the current attitude, used by HIL
-void AP_AHRS_DCM::reset_attitude(const float &_roll, const float &_pitch, const float &_yaw)
-{
-    _dcm_matrix.from_euler(_roll, _pitch, _yaw);
 }
 
 /*
@@ -1092,6 +1089,7 @@ bool AP_AHRS_DCM::airspeed_estimate(uint8_t airspeed_index, float &airspeed_ret)
 
 bool AP_AHRS_DCM::set_home(const Location &loc)
 {
+    WITH_SEMAPHORE(_rsem);
     // check location is valid
     if (loc.lat == 0 && loc.lng == 0 && loc.alt == 0) {
         return false;

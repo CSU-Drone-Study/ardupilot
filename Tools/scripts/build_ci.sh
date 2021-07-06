@@ -19,9 +19,9 @@ export CHIBIOS_GIT_VERSION="ci_test"
 export CCACHE_SLOPPINESS="include_file_ctime,include_file_mtime"
 autotest_args=""
 
-# If CI_BUILD_TARGET is not set, build 3 different ones
+# If CI_BUILD_TARGET is not set, build 4 different ones
 if [ -z "$CI_BUILD_TARGET" ]; then
-    CI_BUILD_TARGET="sitl linux fmuv3"
+    CI_BUILD_TARGET="sitl linux fmuv3 omnibusf4pro-one"
 fi
 
 waf=modules/waf/waf-light
@@ -194,10 +194,14 @@ for t in $CI_BUILD_TARGET; do
         $waf configure --board f303-Universal
         $waf clean
         $waf AP_Periph
-        echo "Building CubeOrange peripheral fw"
-        $waf configure --board CubeOrange-periph
+        echo "Building HerePro peripheral fw"
+        $waf configure --board HerePro
         $waf clean
         $waf AP_Periph
+        echo "Building HerePro bootloader"
+        $waf configure --board HerePro --bootloader
+        $waf clean
+        $waf bootloader
         echo "Building G4-ESC peripheral fw"
         $waf configure --board G4-ESC
         $waf clean
