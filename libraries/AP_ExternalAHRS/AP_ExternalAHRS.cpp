@@ -71,13 +71,12 @@ void AP_ExternalAHRS::init(void)
         // min 50Hz
         rate.set(50);
     }
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EXTERNAL AHRS INIT!!!!!!");
+    
     switch (DevType(devtype)) {
     case DevType::VecNav:
         backend = new AP_ExternalAHRS_VectorNav(this, state);
         break;
     case DevType::LORD:
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "LORD DEVTYPE IS ENABLED EXTERNAL AHRS INIT");
         backend = new AP_ExternalAHRS_LORD(this, state);
         break;
     default:

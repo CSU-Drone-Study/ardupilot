@@ -193,7 +193,6 @@ void AP_AHRS_NavEKF::update(bool skip_ins_update)
 #endif
 #if HAL_EXTERNAL_AHRS_ENABLED
         case EKFType::EXTERNAL:
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EXTERNAL AHRS ENABLED");
             shortname = "External";
             break;
 #endif
