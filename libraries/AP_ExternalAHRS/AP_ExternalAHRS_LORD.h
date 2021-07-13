@@ -82,7 +82,8 @@ private:
     Quaternion quatNew;
     uint16_t GPSweek;
     double GPSTOW;
-    
+
+    uint32_t last_pkt1_ms;
 
     void readIMU();
     void buildPacket();
