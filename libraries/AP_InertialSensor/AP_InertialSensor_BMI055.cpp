@@ -271,6 +271,8 @@ void AP_InertialSensor_BMI055::read_fifo_accel(void)
 
         accel *= scale;
 
+        hal.console->printf("accel reading: %f, %f, %f\n", accel[0], accel[1], accel[2]);
+
         _rotate_and_correct_accel(accel_instance, accel);
         _notify_new_accel_raw_sample(accel_instance, accel);
     }
@@ -328,6 +330,8 @@ void AP_InertialSensor_BMI055::read_fifo_gyro(void)
                     int16_t(uint16_t(d[4] | d[5]<<8)) };
         Vector3f gyro(xyz[0], xyz[1], xyz[2]);
         gyro *= scale;
+
+        hal.console->printf("gyro reading: %f, %f, %f\n", gyro[0], gyro[1], gyro[2]);
 
         _rotate_and_correct_gyro(gyro_instance, gyro);
         _notify_new_gyro_raw_sample(gyro_instance, gyro);

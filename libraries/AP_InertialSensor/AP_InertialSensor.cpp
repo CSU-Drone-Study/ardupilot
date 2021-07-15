@@ -2266,9 +2266,16 @@ void AP_InertialSensor::kill_imu(uint8_t imu_idx, bool kill_it)
 #if HAL_EXTERNAL_AHRS_ENABLED
 void AP_InertialSensor::handle_external(const AP_ExternalAHRS::ins_data_message_t &pkt)
 {
+    //calculate rate
     uint32_t curr = AP_HAL::millis();
     GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "ms since last handle_external: %lu", curr - lastHandleExt);
     lastHandleExt = curr;
+
+    //observe gyro/accel numbers
+    Vector3f gyro = pkt.gyro;
+    Vector3f accel = pkt.accel;
+    GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "gyro reading: %f, %f, %f", gyro[0], gyro[1], gyro[2]);
+    GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "accel reading: %f, %f, %f", accel[0], accel[1], accel[2]);
 
     for (uint8_t i = 0; i < _backend_count; i++) {
         _backends[i]->handle_external(pkt);
