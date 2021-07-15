@@ -678,7 +678,7 @@ AP_InertialSensor *AP_InertialSensor::get_singleton()
 bool AP_InertialSensor::register_gyro(uint8_t &instance, uint16_t raw_sample_rate_hz, uint32_t id)
 {
     if (_gyro_count == INS_MAX_INSTANCES) {
-        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Failed to register gyro id %u", unsigned(id));
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "gyro: ");
         return false;
     }
 
@@ -2266,6 +2266,9 @@ void AP_InertialSensor::kill_imu(uint8_t imu_idx, bool kill_it)
 #if HAL_EXTERNAL_AHRS_ENABLED
 void AP_InertialSensor::handle_external(const AP_ExternalAHRS::ins_data_message_t &pkt)
 {
+
+
+
     for (uint8_t i = 0; i < _backend_count; i++) {
         _backends[i]->handle_external(pkt);
     }
