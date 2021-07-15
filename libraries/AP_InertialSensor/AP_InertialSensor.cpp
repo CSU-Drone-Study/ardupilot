@@ -2267,7 +2267,7 @@ void AP_InertialSensor::kill_imu(uint8_t imu_idx, bool kill_it)
 void AP_InertialSensor::handle_external(const AP_ExternalAHRS::ins_data_message_t &pkt)
 {
 
-
+    GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "gyro:");
 
     for (uint8_t i = 0; i < _backend_count; i++) {
         _backends[i]->handle_external(pkt);
