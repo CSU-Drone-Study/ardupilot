@@ -186,13 +186,13 @@ void AP_ExternalAHRS_LORD::parseIMU() { //TODO Really Read through this it's mes
         uint8_t fieldDesc = currPacket.payload[i+1];
         switch (fieldDesc) {
             case 0x04: { //accel
-                accelNew = populateVector3f(currPacket.payload, i, 9.8);
+                accelNew = populateVector3f(currPacket.payload, i, 9.8); //converts lord g's to ardupilot m/s^2
                 }break;
             case 0x05: { //gyro
-                gyroNew = populateVector3f(currPacket.payload, i, 1);
+                gyroNew = populateVector3f(currPacket.payload, i, 1); //no unit conversion needed, results in rad/s
                 }break;
             case 0x06: { //mag
-                magNew = populateVector3f(currPacket.payload, i, 1000);
+                magNew = populateVector3f(currPacket.payload, i, 1000); //TODO: what is happening here
                 }break;
             case 0x0A: { // Quat
                 quatNew = populateQuaternion(currPacket.payload, i);
@@ -205,14 +205,14 @@ void AP_ExternalAHRS_LORD::parseIMU() { //TODO Really Read through this it's mes
                 uint16_t timestamp_flags = get4ByteField(currPacket.payload, i+14);
                 if (timestamp_flags >= 4) {
                     auto temp = get8ByteField(currPacket.payload, i + 2);
-                    GPSTOW = *reinterpret_cast<double *>(&temp);
-                    GPSweek = get2ByteField(currPacket.payload, i + 10);
+                    GPSTOW = *reinterpret_cast<double *>(&temp); //in seconds
+                    GPSweek = get2ByteField(currPacket.payload, i + 10); //week number
                 }
                 }break;
             case 0x17: { //pressure
                 uint32_t tmp = get4ByteField(currPacket.payload, i + 2);
                 pressureNew = *reinterpret_cast<float *>(&tmp);
-                pressureNew *= 100;
+                pressureNew *= 100; //converts LORD milliBar to ardupilot pascals
                 }break;
         }
     }
@@ -228,7 +228,7 @@ void AP_ExternalAHRS_LORD::parseEFD() { //TODO Future Implementation
 
 }
 
-void AP_ExternalAHRS_LORD::handleIMUPacket() {
+void AP_ExternalAHRS_LORD::handleIMUPacket() { //sends data off to external handlers
     IMUPacketReady = false;
 
     {
@@ -264,7 +264,7 @@ void AP_ExternalAHRS_LORD::handleIMUPacket() {
     {
         AP_ExternalAHRS::gps_data_message_t gps;
         gps.gps_week = GPSweek;
-        gps.ms_tow = (uint32_t)(GPSTOW * 1000);
+        gps.ms_tow = (uint32_t)(GPSTOW * 1000); //converts seconds to milliseconds
 
         AP::gps().handle_external(gps);
     }
@@ -310,7 +310,7 @@ void AP_ExternalAHRS_LORD::send_status_report(mavlink_channel_t chan) const //TO
     return;
 }
 
-Vector3f AP_ExternalAHRS_LORD::populateVector3f(const uint8_t* pkt, uint8_t offset, float multiplier) {
+Vector3f AP_ExternalAHRS_LORD::populateVector3f(const uint8_t* pkt, uint8_t offset, float multiplier) { //parses x,y,z
     Vector3f data;
     uint32_t tmp[3];
     for (uint8_t j = 0; j < 3; j++) {
@@ -322,7 +322,7 @@ Vector3f AP_ExternalAHRS_LORD::populateVector3f(const uint8_t* pkt, uint8_t offs
     return data * multiplier;
 }
 
-Quaternion AP_ExternalAHRS_LORD::populateQuaternion(const uint8_t* pkt, uint8_t offset) {
+Quaternion AP_ExternalAHRS_LORD::populateQuaternion(const uint8_t* pkt, uint8_t offset) { //parses the four four byte values into quaternion
     uint32_t tmp[4];
     for (uint8_t j = 0; j < 4; j++) {
         tmp[j] = get4ByteField(pkt, offset + j * 4 + 2);
