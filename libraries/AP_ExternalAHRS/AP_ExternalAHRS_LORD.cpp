@@ -252,6 +252,7 @@ void AP_ExternalAHRS_LORD::handleIMUPacket() {
         AP_ExternalAHRS::baro_data_message_t baro;
         baro.instance = 0;
         baro.pressure_pa = pressureNew;
+        //setting temp to 25 effectively disables barometer temperature calibrations - this are performed by lord
         baro.temperature = 25;
         AP::baro().handle_external(baro);
     }
