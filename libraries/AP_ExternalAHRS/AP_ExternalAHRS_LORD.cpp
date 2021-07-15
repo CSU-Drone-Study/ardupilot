@@ -32,21 +32,25 @@
 
 extern const AP_HAL::HAL &hal;
 
+//constructor
 AP_ExternalAHRS_LORD::AP_ExternalAHRS_LORD(AP_ExternalAHRS *_frontend,
                                                      AP_ExternalAHRS::state_t &_state) :
     AP_ExternalAHRS_backend(_frontend, _state)
 {
+
+    //uart initialization and connecting the lord
     auto &sm = AP::serialmanager();
     uart = sm.find_serial(AP_SerialManager::SerialProtocol_AHRS, 0);
     // uart = hal.serial(1);
 
-    if (!uart) {
+    if (!uart) {   //connection failed
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ExternalAHRS no UART");
         hal.console->printf("LORD IS NOT CONNECTED ANYMORE\n");
         return;
     }
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "LORD ExternalAHRS initialised");
 
+    //update thread fail check
     if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_ExternalAHRS_LORD::update_thread, void), "AHRS", 2048, AP_HAL::Scheduler::PRIORITY_SPI, 0)) {
         AP_HAL::panic("Failed to start ExternalAHRS update thread");
     }
@@ -56,12 +60,14 @@ AP_ExternalAHRS_LORD::AP_ExternalAHRS_LORD(AP_ExternalAHRS *_frontend,
 
 void AP_ExternalAHRS_LORD::update_thread()
 {
+    //open port in the thread if not opened
     if(!portOpened) {
         portOpened = true;
         uart->begin(baudrate);
         hal.scheduler->delay(1000);
     }
 
+    //pass off packets to handlers as ready, reads infinitely
     while(true) {
         if(IMUPacketReady) {
             handleIMUPacket();
@@ -88,49 +94,49 @@ void AP_ExternalAHRS_LORD::readIMU() {
 
 //use all available bytes to continue building packets where we left off last loop
 void AP_ExternalAHRS_LORD::buildPacket() {
-    while(buffer.available() >= (uint32_t)searchBytes) {
-        switch (currPhase) {
-            case sync: {
+    while(buffer.available() >= (uint32_t)searchBytes) {     //when peek location is in buffer range
+        switch (currPhase) { //monitors where we are in the packet reading process
+            case sync: { //reads and syncs bytes, switches state to continue processing payload size
                 bool good = buffer.read_byte(tempData);
-                if(!good) break;
+                if(!good) break; //byte not successfully read
                 if (tempData[0] == nextSyncByte) {
-                    if (nextSyncByte == syncByte2) {
-                        nextSyncByte = syncByte1;
-                        currPacket.header[0] = 0x75;
-                        currPacket.header[1] = 0x65;
+                    if (nextSyncByte == syncByte2) { //if it is e
+                        nextSyncByte = syncByte1; //switch it back to u
+                        currPacket.header[0] = 0x75; //u  //begin building current packet header
+                        currPacket.header[1] = 0x65; //e
                         currPhase = payloadSize;
                         searchBytes = 2;
                     } else {
-                        nextSyncByte = syncByte2;
+                        nextSyncByte = syncByte2; //TODO ??
                     }
                 } else {
                     nextSyncByte = syncByte1;
                 }
             }
                 break;
-            case payloadSize: {
+            case payloadSize: { //finishes header and switches state to payloadAndChecksum
                 buffer.peekbytes(tempData, searchBytes);
-                currPacket.header[2] = tempData[0];
-                currPacket.header[3] = tempData[1];
+                currPacket.header[2] = tempData[0]; //descriptor set byte
+                currPacket.header[3] = tempData[1]; //payload length byte
                 searchBytes = tempData[1] + 4; //next time we need to peek the second half of the header (which we already peeked) + payload + checksum
                 currPhase = payloadAndChecksum;
             }
                 break;
-            case payloadAndChecksum: {
+            case payloadAndChecksum: { //builds payload and checksum
                 buffer.peekbytes(tempData, searchBytes);
                 //copy in the payload and checksum, skip second half of header
-                for (int i = 2; i < searchBytes - 2; i++) {
+                for (int i = 2; i < searchBytes - 2; i++) { //off by 2 because of way header was read
                     currPacket.payload[i - 2] = tempData[i];
                 }
-                currPacket.checksum[0] = tempData[searchBytes - 2];
-                currPacket.checksum[1] = tempData[searchBytes - 1];
-                //if checksum is good we can move read pointer, otherwise we leave all those bytes and start after the last sync bytes
+                currPacket.checksum[0] = tempData[searchBytes - 2]; //MSB
+                currPacket.checksum[1] = tempData[searchBytes - 1]; //LSB
+                //if checksum is good we can move read pointer, otherwise we leave all those bytes and start after the last sync bytes- handles partial packets
                 if (validPacket()) {
                     parsePacket();
                     buffer.read(tempData, searchBytes);
                 }
-                currPhase = sync;
-                searchBytes = 1;
+                currPhase = sync; //ready to build next packet
+                searchBytes = 1;  //read from beginning
             }
                 break;
         }
@@ -138,7 +144,7 @@ void AP_ExternalAHRS_LORD::buildPacket() {
 }
 
 //gets checksum and compares it to curr packet
-bool AP_ExternalAHRS_LORD::validPacket() {
+bool AP_ExternalAHRS_LORD::validPacket() { //TODO ??
     uint8_t checksumByte1 = 0;
     uint8_t checksumByte2 = 0;
 
@@ -157,8 +163,9 @@ bool AP_ExternalAHRS_LORD::validPacket() {
 
 // NEW PACKET PARSING CODE
 void AP_ExternalAHRS_LORD::parsePacket() {
-    uint8_t dataSet = currPacket.header[2];
-    switch (dataSet) {
+    last_pkt1_ms = AP_HAL::millis();          //measures time when packet is read
+    uint8_t dataSet = currPacket.header[2]; //descriptor set byte
+    switch (dataSet) {  //calls correct handlers
         case 0x80:
             parseIMU();
             break;
@@ -171,21 +178,21 @@ void AP_ExternalAHRS_LORD::parsePacket() {
     }
 }
 
-void AP_ExternalAHRS_LORD::parseIMU() {
+void AP_ExternalAHRS_LORD::parseIMU() { //TODO Really Read through this it's messy
     IMUPacketReady = true;
 
     uint8_t payloadLen = currPacket.header[3];
-    for (uint8_t i = 0; i < payloadLen; i += currPacket.payload[i]) {
+    for (uint8_t i = 0; i < payloadLen; i += currPacket.payload[i]) { //parse out subpayloads from payload
         uint8_t fieldDesc = currPacket.payload[i+1];
         switch (fieldDesc) {
-            case 0x04: {
-                accelNew = populateVector3f(currPacket.payload, i, 9.8);
+            case 0x04: { //accel
+                accelNew = populateVector3f(currPacket.payload, i, 9.8); //converts lord g's to ardupilot m/s^2
                 }break;
-            case 0x05: {
-                gyroNew = populateVector3f(currPacket.payload, i, 1);
+            case 0x05: { //gyro
+                gyroNew = populateVector3f(currPacket.payload, i, 1); //no unit conversion needed, results in rad/s
                 }break;
-            case 0x06: {
-                magNew = populateVector3f(currPacket.payload, i, 1000);
+            case 0x06: { //mag
+                magNew = populateVector3f(currPacket.payload, i, 1000); //TODO: what is happening here
                 }break;
             case 0x0A: { // Quat
                 quatNew = populateQuaternion(currPacket.payload, i);
@@ -198,30 +205,30 @@ void AP_ExternalAHRS_LORD::parseIMU() {
                 uint16_t timestamp_flags = get4ByteField(currPacket.payload, i+14);
                 if (timestamp_flags >= 4) {
                     auto temp = get8ByteField(currPacket.payload, i + 2);
-                    GPSTOW = *reinterpret_cast<double *>(&temp);
-                    GPSweek = get2ByteField(currPacket.payload, i + 10);
+                    GPSTOW = *reinterpret_cast<double *>(&temp); //in seconds
+                    GPSweek = get2ByteField(currPacket.payload, i + 10); //week number
                 }
                 }break;
-            case 0x17: {
+            case 0x17: { //pressure
                 uint32_t tmp = get4ByteField(currPacket.payload, i + 2);
                 pressureNew = *reinterpret_cast<float *>(&tmp);
-                pressureNew *= 100;
+                pressureNew *= 100; //converts LORD milliBar to ardupilot pascals
                 }break;
         }
     }
 }
 
-void AP_ExternalAHRS_LORD::parseGNSS() {
+void AP_ExternalAHRS_LORD::parseGNSS() { //TODO Future Implementation
     GNSSPacketReady = true;
 
 }
 
-void AP_ExternalAHRS_LORD::parseEFD() {
+void AP_ExternalAHRS_LORD::parseEFD() { //TODO Future Implementation
     EFDPacketReady = true;
 
 }
 
-void AP_ExternalAHRS_LORD::handleIMUPacket() {
+void AP_ExternalAHRS_LORD::handleIMUPacket() { //sends data off to external handlers
     IMUPacketReady = false;
 
     {
@@ -257,17 +264,17 @@ void AP_ExternalAHRS_LORD::handleIMUPacket() {
     {
         AP_ExternalAHRS::gps_data_message_t gps;
         gps.gps_week = GPSweek;
-        gps.ms_tow = (uint32_t)(GPSTOW * 1000);
+        gps.ms_tow = (uint32_t)(GPSTOW * 1000); //converts seconds to milliseconds
 
         AP::gps().handle_external(gps);
     }
 }
 
-void AP_ExternalAHRS_LORD::handleGNSSPacket() {
+void AP_ExternalAHRS_LORD::handleGNSSPacket() {  //TODO Future Implementation
     GNSSPacketReady = false;
 }
 
-void AP_ExternalAHRS_LORD::handleEFDPacket() {
+void AP_ExternalAHRS_LORD::handleEFDPacket() {  //TODO Future Implementation
     EFDPacketReady = false;
 }
 
@@ -276,32 +283,34 @@ void AP_ExternalAHRS_LORD::handleEFDPacket() {
     return 4;
 };
 
-bool AP_ExternalAHRS_LORD::healthy(void) const
+bool AP_ExternalAHRS_LORD::healthy(void) const  //checks to make sure packets are being read at the appropriate rate
+{
+    uint32_t now = AP_HAL::millis();
+    uint32_t desiredPacketRate= 1000/50;
+    return (now - last_pkt1_ms < desiredPacketRate);           //may need to change when rate changes - Rachel
+}
+
+bool AP_ExternalAHRS_LORD::initialised(void) const //TODO Future Implementation
 {
     return true;
 }
 
-bool AP_ExternalAHRS_LORD::initialised(void) const
+bool AP_ExternalAHRS_LORD::pre_arm_check(char *failure_msg, uint8_t failure_msg_len) const //TODO Future Implementation
 {
     return true;
 }
 
-bool AP_ExternalAHRS_LORD::pre_arm_check(char *failure_msg, uint8_t failure_msg_len) const
-{
-    return true;
-}
-
-void AP_ExternalAHRS_LORD::get_filter_status(nav_filter_status &status) const
+void AP_ExternalAHRS_LORD::get_filter_status(nav_filter_status &status) const //TODO Future Implementation
 {
     return;
 }
 
-void AP_ExternalAHRS_LORD::send_status_report(mavlink_channel_t chan) const
+void AP_ExternalAHRS_LORD::send_status_report(mavlink_channel_t chan) const //TODO Future Implementation
 {
     return;
 }
 
-Vector3f AP_ExternalAHRS_LORD::populateVector3f(const uint8_t* pkt, uint8_t offset, float multiplier) {
+Vector3f AP_ExternalAHRS_LORD::populateVector3f(const uint8_t* pkt, uint8_t offset, float multiplier) { //parses x,y,z
     Vector3f data;
     uint32_t tmp[3];
     for (uint8_t j = 0; j < 3; j++) {
@@ -313,7 +322,7 @@ Vector3f AP_ExternalAHRS_LORD::populateVector3f(const uint8_t* pkt, uint8_t offs
     return data * multiplier;
 }
 
-Quaternion AP_ExternalAHRS_LORD::populateQuaternion(const uint8_t* pkt, uint8_t offset) {
+Quaternion AP_ExternalAHRS_LORD::populateQuaternion(const uint8_t* pkt, uint8_t offset) { //parses the four four byte values into quaternion
     uint32_t tmp[4];
     for (uint8_t j = 0; j < 4; j++) {
         tmp[j] = get4ByteField(pkt, offset + j * 4 + 2);
