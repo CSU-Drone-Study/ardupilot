@@ -1,5 +1,8 @@
 #include <assert.h>
 
+#include <chrono>
+#include <unistd.h>
+
 #include <AP_Common/AP_Common.h>
 #include <AP_HAL/AP_HAL.h>
 #if HAL_INS_ENABLED
@@ -642,6 +645,7 @@ AP_InertialSensor::AP_InertialSensor() :
     _board_orientation(ROTATION_NONE),
     _log_raw_bit(-1)
 {
+    lastHandleExt = std::chrono::steady_clock::now();
     if (_singleton) {
         AP_HAL::panic("Too many inertial sensors");
     }
@@ -2266,6 +2270,11 @@ void AP_InertialSensor::kill_imu(uint8_t imu_idx, bool kill_it)
 #if HAL_EXTERNAL_AHRS_ENABLED
 void AP_InertialSensor::handle_external(const AP_ExternalAHRS::ins_data_message_t &pkt)
 {
+    std::chrono::steady_clock::time_point curr = std::chrono::steady_clock::now();
+    int milliSinceLast = std::chrono::duration_cast<std::chrono::milliseconds>(curr - lastHandleExt).count();
+    GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "ms since last handle_external: %i" + milliSinceLast);
+    lastHandleExt = curr;
+
     for (uint8_t i = 0; i < _backend_count; i++) {
         _backends[i]->handle_external(pkt);
     }

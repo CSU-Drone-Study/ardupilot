@@ -9,6 +9,8 @@
 
 #include <AP_HAL/AP_HAL.h>
 
+#include <chrono>
+
 /**
    maximum number of INS instances available on this platform. If more
    than 1 then redundant sensors may be available
@@ -69,6 +71,9 @@ class AP_Logger;
 class AP_InertialSensor : AP_AccelCal_Client
 {
     friend class AP_InertialSensor_Backend;
+
+private:
+    std::chrono::steady_clock::time_point lastHandleExt;
 
 public:
     AP_InertialSensor();
