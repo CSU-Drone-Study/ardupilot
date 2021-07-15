@@ -244,7 +244,7 @@ void AP_ExternalAHRS_LORD::handleIMUPacket() { //sends data off to external hand
 
         ins.accel = accelNew;
         ins.gyro = gyroNew;
-
+        ins.temperature = -300;
         AP::ins().handle_external(ins);
     }
 
@@ -257,7 +257,9 @@ void AP_ExternalAHRS_LORD::handleIMUPacket() { //sends data off to external hand
 
     {
         AP_ExternalAHRS::baro_data_message_t baro;
+        baro.instance = 0;
         baro.pressure_pa = pressureNew;
+        //baro.temperature = -300;
         AP::baro().handle_external(baro);
     }
 
