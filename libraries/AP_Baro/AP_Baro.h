@@ -5,6 +5,7 @@
 #include <Filter/Filter.h>
 #include <Filter/DerivativeFilter.h>
 #include <AP_MSP/msp.h>
+#include <GCS_MAVLink/GCS.h>
 #include <AP_ExternalAHRS/AP_ExternalAHRS.h>
 
 #ifndef HAL_MSP_BARO_ENABLED
@@ -66,7 +67,11 @@ public:
     // calibration and alt check not valid for AP_Periph
     bool healthy(uint8_t instance) const { return sensors[instance].healthy; }
 #else
-    bool healthy(uint8_t instance) const { return sensors[instance].healthy && sensors[instance].alt_ok && sensors[instance].calibrated; }
+    bool healthy(uint8_t instance) const {
+        if (instance == 0)
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Gyro (%d), healthy=%d alt_ok=%d calibrated=%d", instance,  sensors[instance].healthy, sensors[instance].alt_ok, sensors[instance].calibrated); 
+        return sensors[instance].healthy && sensors[instance].alt_ok && sensors[instance].calibrated; 
+        }
 #endif
 
     // check if all baros are healthy - used for SYS_STATUS report

@@ -24,8 +24,24 @@ void AP_Baro_Backend::update_healthy_flag(uint8_t instance)
         (now - _frontend.sensors[instance].last_change_ms < BARO_DATA_CHANGE_TIMEOUT_MS) &&
         !is_zero(_frontend.sensors[instance].pressure);
 
+    if (!(now - _frontend.sensors[instance].last_update_ms < BARO_TIMEOUT_MS)) {
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Baro %d unhealthy from not being updated quick enough: %d last update ms", instance, now - _frontend.sensors[instance].last_update_ms);
+    }
+
+    if (!(now - _frontend.sensors[instance].last_change_ms < BARO_DATA_CHANGE_TIMEOUT_MS)) {
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Baro %d unhealthy from not changing quick enough: %d last update ms", instance, now - _frontend.sensors[instance].last_update_ms);
+    }
+
+    if (is_zero(_frontend.sensors[instance].pressure)) {
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Baro %d unhealthy cause pressure 0", instance);
+    }
+
+
+
+
     if (_frontend.sensors[instance].temperature < -200 ||
         _frontend.sensors[instance].temperature > 200) {
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Baro %d unhealthy from temp: %f", instance, _frontend.sensors[instance].temperature);
         // if temperature is way out of range then we likely have bad
         // data from the sensor, treat is as unhealthy. This is done
         // so SPI sensors which have no data validity checking can
