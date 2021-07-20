@@ -69,7 +69,7 @@ public:
 #else
     bool healthy(uint8_t instance) const {
         if (instance == 0)
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Gyro (%d), healthy=%d alt_ok=%d calibrated=%d", instance,  sensors[instance].healthy, sensors[instance].alt_ok, sensors[instance].calibrated); 
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Baro (%d), healthy=%d alt_ok=%d calibrated=%d", instance,  sensors[instance].healthy, sensors[instance].alt_ok, sensors[instance].calibrated); 
         return sensors[instance].healthy && sensors[instance].alt_ok && sensors[instance].calibrated; 
         }
 #endif

@@ -25,11 +25,11 @@ void AP_Baro_Backend::update_healthy_flag(uint8_t instance)
         !is_zero(_frontend.sensors[instance].pressure);
 
     if (!(now - _frontend.sensors[instance].last_update_ms < BARO_TIMEOUT_MS)) {
-        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Baro %d unhealthy from not being updated quick enough: %d last update ms", instance, now - _frontend.sensors[instance].last_update_ms);
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Baro %d unhealthy from not being updated quick enough: %lu last update ms", instance, now - _frontend.sensors[instance].last_update_ms);
     }
 
     if (!(now - _frontend.sensors[instance].last_change_ms < BARO_DATA_CHANGE_TIMEOUT_MS)) {
-        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Baro %d unhealthy from not changing quick enough: %d last update ms", instance, now - _frontend.sensors[instance].last_update_ms);
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Baro %d unhealthy from not changing quick enough: %lu last update ms", instance, now - _frontend.sensors[instance].last_update_ms);
     }
 
     if (is_zero(_frontend.sensors[instance].pressure)) {
