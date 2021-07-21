@@ -815,6 +815,8 @@ void AP_Baro::update(void)
 {
     WITH_SEMAPHORE(_rsem);
 
+    GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "num baros: %u\n", num_instances());
+
     if (fabsf(_alt_offset - _alt_offset_active) > 0.01f) {
         // If there's more than 1cm difference then slowly slew to it via LPF.
         // The EKF does not like step inputs so this keeps it happy.
@@ -949,6 +951,7 @@ void AP_Baro::handle_msp(const MSP::msp_baro_data_message_t &pkt)
  */
 void AP_Baro::handle_external(const AP_ExternalAHRS::baro_data_message_t &pkt)
 {
+    //GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "LORD baro reading: %f", pkt.pressure_pa);
     for (uint8_t i=0; i<_num_drivers; i++) {
         drivers[i]->handle_external(pkt);
     }

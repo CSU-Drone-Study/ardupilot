@@ -251,6 +251,8 @@ void AP_ExternalAHRS_LORD::handleIMUPacket() {
     {
         AP_ExternalAHRS::baro_data_message_t baro;
         baro.pressure_pa = pressureNew;
+        baro.instance = 0;
+        baro.temperature = 25;
         AP::baro().handle_external(baro);
     }
 

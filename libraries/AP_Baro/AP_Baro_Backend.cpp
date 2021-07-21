@@ -46,6 +46,7 @@ void AP_Baro_Backend::backend_update(uint8_t instance)
  */
 void AP_Baro_Backend::_copy_to_frontend(uint8_t instance, float pressure, float temperature)
 {
+    hal.console->printf("pressure in backend: %f - instance = %u\n", pressure, instance);
     if (instance >= _frontend._num_sensors) {
         return;
     }
