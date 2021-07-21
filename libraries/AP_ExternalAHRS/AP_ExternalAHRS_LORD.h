@@ -78,10 +78,24 @@ private:
     Vector3f accelNew;
     Vector3f gyroNew;
     Vector3f magNew;
+    
     float pressureNew;
     Quaternion quatNew;
     uint16_t GPSweek;
-    double GPSTOW;
+    uint32_t GPSTOW;
+    double latitudeNew;
+    double longitudeNew;
+    double mslNew;
+    float horizPositionAccNew;
+    float vertPositionAccNew;
+    float nedVelNorthNew;
+    float nedVelEastNew;
+    float nedVelDownNew;
+    uint8_t fixTypeNew;
+    uint8_t satsInViewNew;
+    float hDOPNew;
+    float vDOPNew;
+    float horizVelocityAccNew;
     
 
     void readIMU();

@@ -214,6 +214,39 @@ void AP_ExternalAHRS_LORD::parseIMU() {
 void AP_ExternalAHRS_LORD::parseGNSS() {
     GNSSPacketReady = true;
 
+    uint8_t payloadLen = currPacket.header[3];
+    for (uint8_t i = 0; i < payloadLen; i += currPacket.payload[i]) {
+        uint8_t fieldDesc = currPacket.payload[i+1];
+
+        switch (fieldDesc) {
+            case 0x09: {
+                // GPS Time
+                GPSweek = get2ByteField(currPacket.payload, i+8);
+                uint32_t tow_tmp = get8ByteField(currPacket.payload, i);
+                double tow_dbl_tmp = *reinterpret_cast<double*>(&tow_tmp);
+                GPSTOW = tow_dbl_tmp * 1000;
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Week: %d TOW: %d", GPSweek, GPSTOW);
+                } break;
+            case 0x0B: {
+                //GNSS Fix Information
+
+                } break;
+            case 0x03: {
+                // LLH Position
+
+                } break;
+            case 0x07: {
+                // DOP Data
+
+                } break;
+            case 0x05: {
+                // Ned Velocity
+
+                } break;
+        }
+
+    }
+
 }
 
 void AP_ExternalAHRS_LORD::parseEFD() {
