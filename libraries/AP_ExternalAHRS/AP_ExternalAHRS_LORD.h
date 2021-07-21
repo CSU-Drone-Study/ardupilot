@@ -44,57 +44,53 @@ public:
 
 private:
 
+    enum class DescriptorSet {
+        BaseCommand = 0x01,
+        DMCommand = 0x0C,
+        SystemCommand = 0x7F,
+        IMUData = 0x80,
+        GNSSData = 0x81,
+        EstimationData = 0x82
+    };
+
+    enum class ParseState {
+        WaitingFor_SyncOne,
+        WaitingFor_SyncTwo,
+        WaitingFor_Descriptor,
+        WaitingFor_PayloadLength,
+        WaitingFor_Data,
+        WaitingFor_Checksum
+    };
+
+    ParseState state = ParseState::WaitingFor_SyncOne;
+
     void update_thread();
 
     AP_HAL::UARTDriver *uart;
     uint32_t baudrate;
     bool portOpened = false;
 
+    const uint8_t SYNC_ONE = 0x75;
+    const uint8_t SYNC_TWO = 0x65;
+
     struct LORD_Packet {
         uint8_t header[4];
-        uint8_t payload[512];
+        uint8_t payload[256];
         uint8_t checksum[2];
     };
-
-    //shared ring buffer
-    static const uint32_t bufferSize = 1024;
-    ByteBuffer buffer{bufferSize};
-    uint8_t tempData[bufferSize];
-
-    //packet building state variables
-    struct LORD_Packet currPacket;
-    enum SearchPhase { sync, payloadSize, payloadAndChecksum };
-    SearchPhase currPhase = sync;
-    int searchBytes = 1;
-    //sync bytes phase
-    const uint8_t syncByte1 = 0x75;
-    const uint8_t syncByte2 = 0x65;
-    uint8_t nextSyncByte = syncByte1;
-
-    //variables for final data to be output
-    bool IMUPacketReady = false;
-    bool GNSSPacketReady = false;
-    bool EFDPacketReady = false;
-    Vector3f accelNew;
-    Vector3f gyroNew;
-    Vector3f magNew;
-    float pressureNew;
-    Quaternion quatNew;
-    uint16_t GPSweek;
-    double GPSTOW;
     
+    struct {
+        LORD_Packet packet;
+        ParseState state;
+        uint8_t index;
+    } message_in;
+    
+    void build_packet();
+    bool valid_packet(LORD_Packet &packet);
+    void handle_packet(LORD_Packet &packet);
+    void handle_imu(LORD_Packet &packet);
+    void handle_gnss(LORD_Packet &packet);
 
-    void readIMU();
-    void buildPacket();
-    bool validPacket();
-
-    void parsePacket();
-    void parseIMU();
-    void parseGNSS();
-    void parseEFD();
-    void handleIMUPacket();
-    void handleGNSSPacket();
-    void handleEFDPacket();
     Vector3f populateVector3f(const uint8_t*,uint8_t,float);
     Quaternion populateQuaternion(const uint8_t*,uint8_t);
     uint64_t get8ByteField(const uint8_t*,uint8_t);
