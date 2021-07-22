@@ -297,10 +297,10 @@ Quaternion AP_ExternalAHRS_LORD::populate_quaternion(uint8_t * data, uint8_t off
         tmp[i] = be32toh_ptr( & data[offset + i * 4]);
     }
 
-    quat.q1 = static_cast < float > (tmp[0]);
-    quat.q2 = static_cast < float > (tmp[1]);
-    quat.q3 = static_cast < float > (tmp[2]);
-    quat.q4 = static_cast < float > (tmp[3]);
+    quat.q1 = * reinterpret_cast < float * > ( & tmp[0]);
+    quat.q2 = * reinterpret_cast < float * > ( & tmp[1]);
+    quat.q3 = * reinterpret_cast < float * > ( & tmp[2]);
+    quat.q4 = * reinterpret_cast < float * > ( & tmp[3]);
 
     return quat;
 }
@@ -308,12 +308,12 @@ Quaternion AP_ExternalAHRS_LORD::populate_quaternion(uint8_t * data, uint8_t off
 float AP_ExternalAHRS_LORD::extract_float(uint8_t * data, uint8_t offset) {
     uint32_t tmp = be32toh_ptr( & data[offset]);
 
-    return static_cast < float > (tmp);
+    return *reinterpret_cast < float * > ( & tmp);
 }
 double AP_ExternalAHRS_LORD::extract_double(uint8_t * data, uint8_t offset) {
-    uint64_t tmp = be32toh_ptr( & data[offset]) << 32 | be32toh_ptr(&data[offset + 4]);
+    uint64_t tmp = (uint64_t) be32toh_ptr( & data[offset]) << 32 | be32toh_ptr(&data[offset + 4]);
 
-    return static_cast< double > (tmp);
+    return *reinterpret_cast < double * > ( & tmp);
 }
 
 #endif // HAL_EXTERNAL_AHRS_ENABLED
