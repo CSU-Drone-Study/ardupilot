@@ -39,7 +39,7 @@ public:
 
     // check for new data
     void update() override {
-
+        build_packet();
     };
 
 private:
@@ -62,8 +62,6 @@ private:
         WaitingFor_Checksum
     };
 
-    ParseState state = ParseState::WaitingFor_SyncOne;
-
     void update_thread();
 
     AP_HAL::UARTDriver *uart;
@@ -84,18 +82,27 @@ private:
         ParseState state;
         uint8_t index;
     } message_in;
+
+    struct {
+        Vector3f accel;
+        Vector3f gyro;
+        Vector3f mag;
+        Quaternion quat;
+        float pressure;
+    } imu_data;
     
     void build_packet();
     bool valid_packet(LORD_Packet &packet);
     void handle_packet(LORD_Packet &packet);
     void handle_imu(LORD_Packet &packet);
     void handle_gnss(LORD_Packet &packet);
+    void post_imu();
 
-    Vector3f populateVector3f(const uint8_t*,uint8_t,float);
-    Quaternion populateQuaternion(const uint8_t*,uint8_t);
-    uint64_t get8ByteField(const uint8_t*,uint8_t);
-    uint32_t get4ByteField(const uint8_t*,uint8_t);
-    uint16_t get2ByteField(const uint8_t*,uint8_t);
+    Vector3f populate_vector(uint8_t* data, uint8_t offset);
+    Quaternion populate_quaternion(uint8_t* data, uint8_t offset);
+    float extract_float(uint8_t* data, uint8_t offset);
+    double extract_double(uint8_t* data, uint8_t offset);
+
 };
 
 
