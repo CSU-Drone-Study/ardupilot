@@ -199,7 +199,6 @@ void AP_ExternalAHRS_LORD::post_imu() {
 
     {
         AP_ExternalAHRS::ins_data_message_t ins;
-
         ins.accel = imu_data.accel;
         ins.gyro = imu_data.gyro;
         ins.temperature = -300;
@@ -209,7 +208,6 @@ void AP_ExternalAHRS_LORD::post_imu() {
     {
         AP_ExternalAHRS::mag_data_message_t mag;
         mag.field = imu_data.mag;
-
         AP::compass().handle_external(mag);
     }
 
@@ -229,22 +227,18 @@ void AP_ExternalAHRS_LORD::handle_gnss(LORD_Packet & packet) {
             // GPS Time
             case 0x09: {
                 break;
-                
             }
             // GNSS Fix Information
             case 0x0B: {
                 break;
-                
             }
             // LLH Position
             case 0x03: {
                 break;
-                
             }
             // DOP Data
             case 0x07: {
                 break;
-                
             }
             // NED Velocity
             case 0x05: {
@@ -303,10 +297,10 @@ Quaternion AP_ExternalAHRS_LORD::populate_quaternion(uint8_t * data, uint8_t off
         tmp[i] = be32toh_ptr( & data[offset + i * 4]);
     }
 
-    quat.q1 = * reinterpret_cast < float * > ( & tmp[0]);
-    quat.q2 = * reinterpret_cast < float * > ( & tmp[1]);
-    quat.q3 = * reinterpret_cast < float * > ( & tmp[2]);
-    quat.q4 = * reinterpret_cast < float * > ( & tmp[3]);
+    quat.q1 = static_cast < float > (tmp[0]);
+    quat.q2 = static_cast < float > (tmp[1]);
+    quat.q3 = static_cast < float > (tmp[2]);
+    quat.q4 = static_cast < float > (tmp[3]);
 
     return quat;
 }
@@ -314,12 +308,12 @@ Quaternion AP_ExternalAHRS_LORD::populate_quaternion(uint8_t * data, uint8_t off
 float AP_ExternalAHRS_LORD::extract_float(uint8_t * data, uint8_t offset) {
     uint32_t tmp = be32toh_ptr( & data[offset]);
 
-    return *reinterpret_cast < float * > ( & tmp);
+    return static_cast < float > (tmp);
 }
 double AP_ExternalAHRS_LORD::extract_double(uint8_t * data, uint8_t offset) {
-    uint32_t tmp = be32toh_ptr( & data[offset]);
+    uint64_t tmp = be32toh_ptr( & data[offset]) << 32 | be32toh_ptr(&data[offset + 4]);
 
-    return *reinterpret_cast < double * > ( & tmp);
+    return static_cast< double > (tmp);
 }
 
 #endif // HAL_EXTERNAL_AHRS_ENABLED
