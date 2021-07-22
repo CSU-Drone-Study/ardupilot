@@ -17,8 +17,6 @@
 #define ALLOW_DOUBLE_MATH_FUNCTIONS
 
 #include "AP_ExternalAHRS_LORD.h"
-#include <AP_Math/AP_Math.h>
-#include <AP_Math/crc.h>
 #include <AP_Baro/AP_Baro.h>
 #include <AP_Compass/AP_Compass.h>
 #include <AP_GPS/AP_GPS.h>
@@ -26,72 +24,61 @@
 #include <GCS_MAVLink/GCS.h>
 #include <AP_Logger/AP_Logger.h>
 #include <AP_Common/NMEA.h>
-#include <stdio.h>
 #include <AP_HAL/utility/sparse-endian.h>
 
 #if HAL_EXTERNAL_AHRS_ENABLED
 
-extern const AP_HAL::HAL &hal;
+extern
+const AP_HAL::HAL & hal;
 
-AP_ExternalAHRS_LORD::AP_ExternalAHRS_LORD(AP_ExternalAHRS *_frontend,
-                                           AP_ExternalAHRS::state_t &_state) : AP_ExternalAHRS_backend(_frontend, _state)
-{
-    auto &sm = AP::serialmanager();
+AP_ExternalAHRS_LORD::AP_ExternalAHRS_LORD(AP_ExternalAHRS * _frontend,
+    AP_ExternalAHRS::state_t & _state): AP_ExternalAHRS_backend(_frontend, _state) {
+    auto & sm = AP::serialmanager();
     uart = sm.find_serial(AP_SerialManager::SerialProtocol_AHRS, 0);
     // uart = hal.serial(1);
 
-    if (!uart)
-    {
+    if (!uart) {
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ExternalAHRS no UART");
-        hal.console->printf("LORD IS NOT CONNECTED ANYMORE\n");
+        hal.console -> printf("LORD IS NOT CONNECTED ANYMORE\n");
         return;
     }
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "LORD ExternalAHRS initialised");
 
-    if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_ExternalAHRS_LORD::update_thread, void), "AHRS", 2048, AP_HAL::Scheduler::PRIORITY_SPI, 0))
-    {
+    if (!hal.scheduler -> thread_create(FUNCTOR_BIND_MEMBER( & AP_ExternalAHRS_LORD::update_thread, void), "AHRS", 2048, AP_HAL::Scheduler::PRIORITY_SPI, 0)) {
         AP_HAL::panic("Failed to start ExternalAHRS update thread");
     }
 
     baudrate = 115200;
 }
 
-void AP_ExternalAHRS_LORD::update_thread()
-{
-    if (!portOpened)
-    {
+void AP_ExternalAHRS_LORD::update_thread() {
+    if (!portOpened) {
         portOpened = true;
-        uart->begin(baudrate);
-        hal.scheduler->delay(1000);
+        uart -> begin(baudrate);
+        hal.scheduler -> delay(1000);
     }
 
-    while (true)
-    {
+    while (true) {
         build_packet();
-        hal.scheduler->delay(1);
+        hal.scheduler -> delay(1);
     }
 }
 
 //use all available bytes to continue building packets where we left off last loop
-void AP_ExternalAHRS_LORD::build_packet()
-{
-    uint64_t nbytes = uart->available();
-    while (nbytes-- > 0)
-    {
-        uint8_t b = uart->read();
-        switch (message_in.state)
-        {
+void AP_ExternalAHRS_LORD::build_packet() {
+    uint64_t nbytes = uart -> available();
+    while (nbytes--> 0) {
+        uint8_t b = uart -> read();
+        switch (message_in.state) {
         default:
         case ParseState::WaitingFor_SyncOne:
-            if (b == SYNC_ONE)
-            {
+            if (b == SYNC_ONE) {
                 message_in.packet.header[0] = 0x75;
                 message_in.state = ParseState::WaitingFor_SyncTwo;
             }
             break;
         case ParseState::WaitingFor_SyncTwo:
-            if (b == SYNC_TWO)
-            {
+            if (b == SYNC_TWO) {
                 message_in.packet.header[1] = 0x65;
                 message_in.state = ParseState::WaitingFor_Descriptor;
             }
@@ -106,21 +93,18 @@ void AP_ExternalAHRS_LORD::build_packet()
             break;
         case ParseState::WaitingFor_Data:
             message_in.packet.payload[message_in.index++] = b;
-            if (message_in.index >= message_in.packet.header[3])
-            {
+            if (message_in.index >= message_in.packet.header[3]) {
                 message_in.state = ParseState::WaitingFor_Checksum;
                 message_in.index = 0;
             }
             break;
         case ParseState::WaitingFor_Checksum:
             message_in.packet.checksum[message_in.index++] = b;
-            if (message_in.index >= 2)
-            {
+            if (message_in.index >= 2) {
                 message_in.state = ParseState::WaitingFor_SyncOne;
                 message_in.index = 0;
 
-                if (valid_packet(message_in.packet))
-                {
+                if (valid_packet(message_in.packet)) {
                     handle_packet(message_in.packet);
                 }
             }
@@ -131,19 +115,16 @@ void AP_ExternalAHRS_LORD::build_packet()
 }
 
 //gets checksum and compares it to curr packet
-bool AP_ExternalAHRS_LORD::valid_packet(LORD_Packet &packet)
-{
+bool AP_ExternalAHRS_LORD::valid_packet(LORD_Packet & packet) {
     uint8_t checksumByte1 = 0;
     uint8_t checksumByte2 = 0;
 
-    for (int i = 0; i < 4; i++)
-    {
+    for (int i = 0; i < 4; i++) {
         checksumByte1 += packet.header[i];
         checksumByte2 += checksumByte1;
     }
 
-    for (int i = 0; i < packet.header[3]; i++)
-    {
+    for (int i = 0; i < packet.header[3]; i++) {
         checksumByte1 += packet.payload[i];
         checksumByte2 += checksumByte1;
     }
@@ -151,10 +132,8 @@ bool AP_ExternalAHRS_LORD::valid_packet(LORD_Packet &packet)
     return packet.checksum[0] == checksumByte1 && packet.checksum[1] == checksumByte2;
 }
 
-void AP_ExternalAHRS_LORD::handle_packet(LORD_Packet &packet)
-{
-    switch ((DescriptorSet)packet.header[2])
-    {
+void AP_ExternalAHRS_LORD::handle_packet(LORD_Packet & packet) {
+    switch ((DescriptorSet) packet.header[2]) {
     case DescriptorSet::IMUData:
         handle_imu(packet);
         post_imu();
@@ -170,50 +149,41 @@ void AP_ExternalAHRS_LORD::handle_packet(LORD_Packet &packet)
     }
 }
 
-void AP_ExternalAHRS_LORD::handle_imu(LORD_Packet &packet)
-{
-    for (uint8_t i = 0; i < packet.header[3]; i += packet.payload[i])
-    {
-        // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Field %d", packet.payload[i]);
-
-        switch (packet.payload[i + 1])
-        {
-        // Scaled Ambient Pressure
-        case 0x17:
-        {
-            imu_data.pressure = extract_float(packet.payload, i + 2) * 100; // Convert millibar to pascals
-            break;
+void AP_ExternalAHRS_LORD::handle_imu(LORD_Packet & packet) {
+    for (uint8_t i = 0; i < packet.header[3]; i += packet.payload[i]) {
+        switch (packet.payload[i + 1]) {
+            // Scaled Ambient Pressure
+            case 0x17: {
+                imu_data.pressure = extract_float(packet.payload, i + 2) * 100; // Convert millibar to pascals
+                break;
+            }
             // Scaled Magnetometer Vector
-        }
-        case 0x06:
-        {
-            imu_data.mag = populate_vector(packet.payload, i + 2) * 1000; // Convert gauss to radians
-            break;
+            case 0x06: {
+                imu_data.mag = populate_vector(packet.payload, i + 2) * 1000; // Convert gauss to radians
+                break;
+            }
             // Scaled Accelerometer Vector
-        }
-        case 0x04:
-        {
-            imu_data.accel = populate_vector(packet.payload, i + 2) * 9.8; // Convert g's to m/s^2
-            break;
+            case 0x04: {
+                imu_data.accel = populate_vector(packet.payload, i + 2) * 9.8; // Convert g's to m/s^2
+                break;
+                
+            }
             // Scaled Gyro Vector
-        }
-        case 0x05:
-        {
-            imu_data.gyro = populate_vector(packet.payload, i + 2);
-            break;
+            case 0x05: {
+                imu_data.gyro = populate_vector(packet.payload, i + 2);
+                break;
+                
+            }
             // CF Quaternion
-        }
-        case 0x0A:
-        {
-            imu_data.quat = populate_quaternion(packet.payload, i + 2);
-            break;
-        }
+            case 0x0A: {
+                imu_data.quat = populate_quaternion(packet.payload, i + 2);
+                break;
+            }
         }
     }
 }
 
-void AP_ExternalAHRS_LORD::post_imu()
-{
+void AP_ExternalAHRS_LORD::post_imu() {
     {
         WITH_SEMAPHORE(state.sem);
         state.accel = imu_data.accel;
@@ -248,117 +218,101 @@ void AP_ExternalAHRS_LORD::post_imu()
     }
 }
 
-void AP_ExternalAHRS_LORD::handle_gnss(LORD_Packet &packet)
-{
-    for (uint8_t i = 0; i < packet.header[3]; i += packet.payload[i])
-    {
-        switch (packet.payload[i + 1])
-        {
-        // GPS Time
-        case 0x09:
-        {
-            break;
+void AP_ExternalAHRS_LORD::handle_gnss(LORD_Packet & packet) {
+    for (uint8_t i = 0; i < packet.header[3]; i += packet.payload[i]) {
+        switch (packet.payload[i + 1]) {
+            // GPS Time
+            case 0x09: {
+                break;
+                
+            }
             // GNSS Fix Information
-        }
-        case 0x0B:
-        {
-            break;
+            case 0x0B: {
+                break;
+                
+            }
             // LLH Position
-        }
-        case 0x03:
-        {
-            break;
+            case 0x03: {
+                break;
+                
+            }
             // DOP Data
-        }
-        case 0x07:
-        {
-            break;
+            case 0x07: {
+                break;
+                
+            }
             // NED Velocity
-        }
-        case 0x05:
-        {
-            break;
-        }
+            case 0x05: {
+                break;
+            }
         }
     }
 }
 
-int8_t AP_ExternalAHRS_LORD::get_port(void) const
-{
+int8_t AP_ExternalAHRS_LORD::get_port(void) const {
     return 4;
 };
 
-bool AP_ExternalAHRS_LORD::healthy(void) const
-{
+bool AP_ExternalAHRS_LORD::healthy(void) const {
     return true;
 }
 
-bool AP_ExternalAHRS_LORD::initialised(void) const
-{
+bool AP_ExternalAHRS_LORD::initialised(void) const {
     return true;
 }
 
-bool AP_ExternalAHRS_LORD::pre_arm_check(char *failure_msg, uint8_t failure_msg_len) const
-{
+bool AP_ExternalAHRS_LORD::pre_arm_check(char * failure_msg, uint8_t failure_msg_len) const {
     return true;
 }
 
-void AP_ExternalAHRS_LORD::get_filter_status(nav_filter_status &status) const
-{
+void AP_ExternalAHRS_LORD::get_filter_status(nav_filter_status & status) const {
     return;
 }
 
-void AP_ExternalAHRS_LORD::send_status_report(mavlink_channel_t chan) const
-{
+void AP_ExternalAHRS_LORD::send_status_report(mavlink_channel_t chan) const {
     return;
 }
 
-Vector3f AP_ExternalAHRS_LORD::populate_vector(uint8_t *data, uint8_t offset)
-{
+Vector3f AP_ExternalAHRS_LORD::populate_vector(uint8_t * data, uint8_t offset) {
     Vector3f vector;
     uint32_t tmp[3];
 
-    for (uint8_t i = 0; i < 3; i++)
-    {
-        tmp[i] = be32toh_ptr(&data[offset + i * 4]);
+    for (uint8_t i = 0; i < 3; i++) {
+        tmp[i] = be32toh_ptr( & data[offset + i * 4]);
     }
 
-    vector.x = *reinterpret_cast<float *>(&tmp[0]);
-    vector.y = *reinterpret_cast<float *>(&tmp[1]);
-    vector.z = *reinterpret_cast<float *>(&tmp[2]);
+    vector.x = * reinterpret_cast < float * > ( & tmp[0]);
+    vector.y = * reinterpret_cast < float * > ( & tmp[1]);
+    vector.z = * reinterpret_cast < float * > ( & tmp[2]);
 
     return vector;
 }
 
-Quaternion AP_ExternalAHRS_LORD::populate_quaternion(uint8_t *data, uint8_t offset)
-{
+Quaternion AP_ExternalAHRS_LORD::populate_quaternion(uint8_t * data, uint8_t offset) {
     Quaternion quat;
     uint32_t tmp[4];
 
-    for (uint8_t i = 0; i < 4; i++)
-    {
-        tmp[i] = be32toh_ptr(&data[offset + i * 4]);
+    for (uint8_t i = 0; i < 4; i++) {
+        tmp[i] = be32toh_ptr( & data[offset + i * 4]);
     }
 
-    quat.q1 = *reinterpret_cast<float *>(&tmp[0]);
-    quat.q2 = *reinterpret_cast<float *>(&tmp[1]);
-    quat.q3 = *reinterpret_cast<float *>(&tmp[2]);
-    quat.q4 = *reinterpret_cast<float *>(&tmp[3]);
+    quat.q1 = * reinterpret_cast < float * > ( & tmp[0]);
+    quat.q2 = * reinterpret_cast < float * > ( & tmp[1]);
+    quat.q3 = * reinterpret_cast < float * > ( & tmp[2]);
+    quat.q4 = * reinterpret_cast < float * > ( & tmp[3]);
 
     return quat;
 }
 
-float AP_ExternalAHRS_LORD::extract_float(uint8_t *data, uint8_t offset)
-{
-    uint32_t tmp = be32toh_ptr(&data[offset]);
+float AP_ExternalAHRS_LORD::extract_float(uint8_t * data, uint8_t offset) {
+    uint32_t tmp = be32toh_ptr( & data[offset]);
 
-    return *reinterpret_cast<float*>(&tmp);
+    return *reinterpret_cast < float * > ( & tmp);
 }
-double AP_ExternalAHRS_LORD::extract_double(uint8_t *data, uint8_t offset)
-{
-    uint32_t tmp = be32toh_ptr(&data[offset]);
+double AP_ExternalAHRS_LORD::extract_double(uint8_t * data, uint8_t offset) {
+    uint32_t tmp = be32toh_ptr( & data[offset]);
 
-    return *reinterpret_cast<double*>(&tmp);
+    return *reinterpret_cast < double * > ( & tmp);
 }
 
 #endif // HAL_EXTERNAL_AHRS_ENABLED
