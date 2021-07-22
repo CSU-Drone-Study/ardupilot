@@ -66,6 +66,7 @@ private:
 
     AP_HAL::UARTDriver *uart;
     uint32_t baudrate;
+    int8_t port_num;
     bool portOpened = false;
 
     const uint8_t SYNC_ONE = 0x75;
@@ -90,6 +91,8 @@ private:
         Quaternion quat;
         float pressure;
     } imu_data;
+
+    void send_config();
     
     void build_packet();
     bool valid_packet(LORD_Packet &packet);

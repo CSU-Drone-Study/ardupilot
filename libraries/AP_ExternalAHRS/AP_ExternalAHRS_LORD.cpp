@@ -33,35 +33,40 @@ const AP_HAL::HAL & hal;
 
 AP_ExternalAHRS_LORD::AP_ExternalAHRS_LORD(AP_ExternalAHRS * _frontend,
     AP_ExternalAHRS::state_t & _state): AP_ExternalAHRS_backend(_frontend, _state) {
-    auto & sm = AP::serialmanager();
+    auto &sm = AP::serialmanager();
     uart = sm.find_serial(AP_SerialManager::SerialProtocol_AHRS, 0);
-    // uart = hal.serial(1);
+    
+    baudrate = sm.find_baudrate(AP_SerialManager::SerialProtocol_AHRS, 0);
+    port_num = sm.find_portnum(AP_SerialManager::SerialProtocol_AHRS, 0);
 
     if (!uart) {
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ExternalAHRS no UART");
-        hal.console -> printf("LORD IS NOT CONNECTED ANYMORE\n");
         return;
     }
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "LORD ExternalAHRS initialised");
 
     if (!hal.scheduler -> thread_create(FUNCTOR_BIND_MEMBER( & AP_ExternalAHRS_LORD::update_thread, void), "AHRS", 2048, AP_HAL::Scheduler::PRIORITY_SPI, 0)) {
         AP_HAL::panic("Failed to start ExternalAHRS update thread");
     }
 
-    baudrate = 115200;
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "LORD ExternalAHRS initialised");
+
 }
 
 void AP_ExternalAHRS_LORD::update_thread() {
     if (!portOpened) {
         portOpened = true;
         uart -> begin(baudrate);
-        hal.scheduler -> delay(1000);
+        send_config();
     }
 
     while (true) {
         build_packet();
         hal.scheduler -> delay(1);
     }
+}
+
+void AP_ExternalAHRS_LORD::send_config() {
+    
 }
 
 //use all available bytes to continue building packets where we left off last loop
@@ -250,7 +255,9 @@ void AP_ExternalAHRS_LORD::handle_gnss(LORD_Packet & packet) {
 }
 
 int8_t AP_ExternalAHRS_LORD::get_port(void) const {
-    return 4;
+    if (!uart)
+        return -1;
+    return port_num;
 };
 
 bool AP_ExternalAHRS_LORD::healthy(void) const {
