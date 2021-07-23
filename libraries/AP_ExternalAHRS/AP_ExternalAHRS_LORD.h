@@ -92,6 +92,23 @@ private:
         float pressure;
     } imu_data;
 
+    struct {
+        uint16_t week;
+        uint32_t tow_ms;
+        GPS_FIX_TYPE fix_type;
+        uint8_t satellites;
+        float horizontal_position_accuracy;
+        float vertical_position_accuracy;
+        float hdop;
+        float vdop;
+        int32_t lon;
+        int32_t lat;
+        int32_t msl_altitude;
+        float ned_velocity_north;
+        float ned_velocity_east;
+        float ned_velocity_down;
+    } gnss_data;
+
     void send_config();
     
     void build_packet();
@@ -100,6 +117,8 @@ private:
     void handle_imu(LORD_Packet &packet);
     void handle_gnss(LORD_Packet &packet);
     void post_imu();
+    void post_gnss();
+
 
     Vector3f populate_vector(uint8_t* data, uint8_t offset);
     Quaternion populate_quaternion(uint8_t* data, uint8_t offset);

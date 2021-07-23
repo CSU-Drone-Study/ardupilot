@@ -145,6 +145,7 @@ void AP_ExternalAHRS_LORD::handle_packet(LORD_Packet & packet) {
         break;
     case DescriptorSet::GNSSData:
         handle_gnss(packet);
+        post_gnss();
         break;
     case DescriptorSet::EstimationData:
     case DescriptorSet::BaseCommand:
@@ -226,26 +227,93 @@ void AP_ExternalAHRS_LORD::handle_gnss(LORD_Packet & packet) {
         switch (packet.payload[i + 1]) {
             // GPS Time
             case 0x09: {
+                gnss_data.tow_ms = extract_double(packet.payload, i+2) * 1000; // Convert seconds to ms
+                gnss_data.week = be16toh_ptr(&packet.payload[i+10]);
                 break;
             }
             // GNSS Fix Information
             case 0x0B: {
+                switch (packet.payload[i+2]) {
+                    case (0x00): {
+                        gnss_data.fix_type = GPS_FIX_TYPE_3D_FIX;
+                        break;
+                    }
+                    case (0x01): {
+                        gnss_data.fix_type = GPS_FIX_TYPE_2D_FIX;
+                        break;
+                    }
+                    case (0x02): 
+                    case (0x03): {
+                        gnss_data.fix_type = GPS_FIX_TYPE_NO_FIX;
+                        break;
+                    }
+                    default:
+                    case (0x04): {
+                        gnss_data.fix_type = GPS_FIX_TYPE_NO_GPS;
+                        break;
+                    }
+                }
+
+                gnss_data.satellites = packet.payload[i+3];
                 break;
             }
             // LLH Position
             case 0x03: {
+                gnss_data.lat = extract_double(packet.payload, i+2) * 1.0e7;
+                gnss_data.lon = extract_double(packet.payload, i+10) * 1.0e7;
+                gnss_data.msl_altitude = extract_double(packet.payload, i+26) * 1.0e2;
+                gnss_data.horizontal_position_accuracy = extract_float(packet.payload, i + 34);
+                gnss_data.vertical_position_accuracy = extract_float(packet.payload, i+38);
                 break;
             }
             // DOP Data
             case 0x07: {
+                gnss_data.hdop = extract_float(packet.payload, i+10);
+                gnss_data.vdop = extract_float(packet.payload, i+14);
                 break;
             }
             // NED Velocity
             case 0x05: {
+                gnss_data.ned_velocity_north = extract_float(packet.payload, i+2);
+                gnss_data.ned_velocity_east = extract_float(packet.payload, i+6);
+                gnss_data.ned_velocity_down = extract_float(packet.payload, i+10);
                 break;
             }
         }
     }
+}
+
+void AP_ExternalAHRS_LORD::post_gnss() {
+    AP_ExternalAHRS::gps_data_message_t gps;
+    
+    gps.gps_week = gnss_data.week;
+    gps.ms_tow = gnss_data.tow_ms;
+    gps.fix_type = gnss_data.fix_type;
+    gps.satellites_in_view = gnss_data.satellites;
+
+    gps.horizontal_pos_accuracy = gnss_data.horizontal_position_accuracy;
+    gps.vertical_pos_accuracy = gnss_data.vertical_position_accuracy;
+    //TODO: THIS gps.horizontal_vel_accuracy =
+
+    gps.latitude = gnss_data.lat;
+    gps.longitude = gnss_data.lon;
+    gps.msl_altitude = gnss_data.msl_altitude;
+
+    gps.ned_vel_north = gnss_data.ned_velocity_north;
+    gps.ned_vel_east = gnss_data.ned_velocity_east;
+    gps.ned_vel_down = gnss_data.ned_velocity_down;
+
+    if (gps.fix_type >= 3 && !state.have_origin) {
+        WITH_SEMAPHORE(state.sem);
+        state.origin = Location{int32_t(gnss_data.lat),
+                                int32_t(gnss_data.lon),
+                                int32_t(gnss_data.msl_altitude),
+                                Location::AltFrame::ABSOLUTE};
+        state.have_origin = true;
+    }
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Posting gnss: %d %d", gnss_data.lat, gnss_data.lon);
+    AP::gps().handle_external(gps);
 }
 
 int8_t AP_ExternalAHRS_LORD::get_port(void) const {
@@ -311,7 +379,12 @@ float AP_ExternalAHRS_LORD::extract_float(uint8_t * data, uint8_t offset) {
     return *reinterpret_cast < float * > ( & tmp);
 }
 double AP_ExternalAHRS_LORD::extract_double(uint8_t * data, uint8_t offset) {
-    uint64_t tmp = (uint64_t) be32toh_ptr( & data[offset]) << 32 | be32toh_ptr(&data[offset + 4]);
+    // TODO: Do something better here to handle endianess
+    #if __BYTE_ORDER__ == __LITTLE_ENDIAN
+        uint64_t tmp = (uint64_t) be32toh_ptr(&data[offset]) << 32 | be32toh_ptr(&data[offset+4]);
+    #elif __BYTE_ORDER__ == __BIG_ENDIAN
+        uint64_t tmp = (uint64_t) be32toh_ptr(&data[offset+4]) << 32 | be32toh_ptr(&data[offset]);
+    #endif
 
     return *reinterpret_cast < double * > ( & tmp);
 }
