@@ -113,7 +113,6 @@ void AP_ExternalAHRS_LORD::build_packet() {
                         handle_packet(message_in.packet);
                     }
                 }
-
                 break;
         }
     }
@@ -172,13 +171,11 @@ void AP_ExternalAHRS_LORD::handle_imu(LORD_Packet & packet) {
             case 0x04: {
                 imu_data.accel = populate_vector(packet.payload, i + 2) * 9.8; // Convert g's to m/s^2
                 break;
-                
             }
             // Scaled Gyro Vector
             case 0x05: {
                 imu_data.gyro = populate_vector(packet.payload, i + 2);
-                break;
-                
+                break; 
             }
             // CF Quaternion
             case 0x0A: {
@@ -330,11 +327,11 @@ bool AP_ExternalAHRS_LORD::initialised(void) const {
     return true;
 }
 
-bool AP_ExternalAHRS_LORD::pre_arm_check(char * failure_msg, uint8_t failure_msg_len) const {
+bool AP_ExternalAHRS_LORD::pre_arm_check(char* failure_msg, uint8_t failure_msg_len) const {
     return true;
 }
 
-void AP_ExternalAHRS_LORD::get_filter_status(nav_filter_status & status) const {
+void AP_ExternalAHRS_LORD::get_filter_status(nav_filter_status &status) const {
     return;
 }
 
@@ -342,43 +339,44 @@ void AP_ExternalAHRS_LORD::send_status_report(mavlink_channel_t chan) const {
     return;
 }
 
-Vector3f AP_ExternalAHRS_LORD::populate_vector(uint8_t * data, uint8_t offset) {
+Vector3f AP_ExternalAHRS_LORD::populate_vector(uint8_t* data, uint8_t offset) {
     Vector3f vector;
     uint32_t tmp[3];
 
     for (uint8_t i = 0; i < 3; i++) {
-        tmp[i] = be32toh_ptr( & data[offset + i * 4]);
+        tmp[i] = be32toh_ptr(&data[offset+i*4]);
     }
 
-    vector.x = * reinterpret_cast < float * > ( & tmp[0]);
-    vector.y = * reinterpret_cast < float * > ( & tmp[1]);
-    vector.z = * reinterpret_cast < float * > ( & tmp[2]);
+    vector.x = *reinterpret_cast<float*>(&tmp[0]);
+    vector.y = *reinterpret_cast<float*>(&tmp[1]);
+    vector.z = *reinterpret_cast<float*>(&tmp[2]);
 
     return vector;
 }
 
-Quaternion AP_ExternalAHRS_LORD::populate_quaternion(uint8_t * data, uint8_t offset) {
+Quaternion AP_ExternalAHRS_LORD::populate_quaternion(uint8_t* data, uint8_t offset) {
     Quaternion quat;
     uint32_t tmp[4];
 
     for (uint8_t i = 0; i < 4; i++) {
-        tmp[i] = be32toh_ptr( & data[offset + i * 4]);
+        tmp[i] = be32toh_ptr(&data[offset+i*4]);
     }
 
-    quat.q1 = * reinterpret_cast < float * > ( & tmp[0]);
-    quat.q2 = * reinterpret_cast < float * > ( & tmp[1]);
-    quat.q3 = * reinterpret_cast < float * > ( & tmp[2]);
-    quat.q4 = * reinterpret_cast < float * > ( & tmp[3]);
+    quat.q1 = *reinterpret_cast<float*>(&tmp[0]);
+    quat.q2 = *reinterpret_cast<float*>(&tmp[1]);
+    quat.q3 = *reinterpret_cast<float*>(&tmp[2]);
+    quat.q4 = *reinterpret_cast<float*>(&tmp[3]);
 
     return quat;
 }
 
-float AP_ExternalAHRS_LORD::extract_float(uint8_t * data, uint8_t offset) {
+float AP_ExternalAHRS_LORD::extract_float(uint8_t* data, uint8_t offset) {
     uint32_t tmp = be32toh_ptr( & data[offset]);
 
-    return *reinterpret_cast < float * > ( & tmp);
+    return *reinterpret_cast<float*>(&tmp);
 }
-double AP_ExternalAHRS_LORD::extract_double(uint8_t * data, uint8_t offset) {
+
+double AP_ExternalAHRS_LORD::extract_double(uint8_t* data, uint8_t offset) {
     // TODO: Do something better here to handle endianess
     #if __BYTE_ORDER__ == __LITTLE_ENDIAN
         uint64_t tmp = (uint64_t) be32toh_ptr(&data[offset]) << 32 | be32toh_ptr(&data[offset+4]);
@@ -386,7 +384,7 @@ double AP_ExternalAHRS_LORD::extract_double(uint8_t * data, uint8_t offset) {
         uint64_t tmp = (uint64_t) be32toh_ptr(&data[offset+4]) << 32 | be32toh_ptr(&data[offset]);
     #endif
 
-    return *reinterpret_cast < double * > ( & tmp);
+    return *reinterpret_cast<double*>(&tmp);
 }
 
 #endif // HAL_EXTERNAL_AHRS_ENABLED
