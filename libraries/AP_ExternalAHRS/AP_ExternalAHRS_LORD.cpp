@@ -259,9 +259,9 @@ void AP_ExternalAHRS_LORD::handle_gnss(LORD_Packet & packet) {
             }
             // LLH Position
             case 0x03: {
-                gnss_data.lat = extract_double(packet.payload, i+2) * 1.0e7;
+                gnss_data.lat = extract_double(packet.payload, i+2) * 1.0e7; // Decimal degrees to degrees
                 gnss_data.lon = extract_double(packet.payload, i+10) * 1.0e7;
-                gnss_data.msl_altitude = extract_double(packet.payload, i+26) * 1.0e2;
+                gnss_data.msl_altitude = extract_double(packet.payload, i+26) * 1.0e2; // Meters to cm
                 gnss_data.horizontal_position_accuracy = extract_float(packet.payload, i + 34);
                 gnss_data.vertical_position_accuracy = extract_float(packet.payload, i+38);
                 break;
@@ -277,6 +277,7 @@ void AP_ExternalAHRS_LORD::handle_gnss(LORD_Packet & packet) {
                 gnss_data.ned_velocity_north = extract_float(packet.payload, i+2);
                 gnss_data.ned_velocity_east = extract_float(packet.payload, i+6);
                 gnss_data.ned_velocity_down = extract_float(packet.payload, i+10);
+                gnss_data.speed_accuracy = extract_float(packet.payload, i+26);
                 break;
             }
         }
@@ -293,7 +294,6 @@ void AP_ExternalAHRS_LORD::post_gnss() {
 
     gps.horizontal_pos_accuracy = gnss_data.horizontal_position_accuracy;
     gps.vertical_pos_accuracy = gnss_data.vertical_position_accuracy;
-    //TODO: THIS gps.horizontal_vel_accuracy =
 
     gps.latitude = gnss_data.lat;
     gps.longitude = gnss_data.lon;
@@ -302,6 +302,7 @@ void AP_ExternalAHRS_LORD::post_gnss() {
     gps.ned_vel_north = gnss_data.ned_velocity_north;
     gps.ned_vel_east = gnss_data.ned_velocity_east;
     gps.ned_vel_down = gnss_data.ned_velocity_down;
+    gps.horizontal_vel_accuracy = gnss_data.speed_accuracy;
 
     if (gps.fix_type >= 3 && !state.have_origin) {
         WITH_SEMAPHORE(state.sem);

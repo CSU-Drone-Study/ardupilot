@@ -107,6 +107,7 @@ private:
         float ned_velocity_north;
         float ned_velocity_east;
         float ned_velocity_down;
+        float speed_accuracy;
     } gnss_data;
 
     void send_config();
