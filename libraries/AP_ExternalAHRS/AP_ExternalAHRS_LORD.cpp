@@ -313,7 +313,6 @@ void AP_ExternalAHRS_LORD::post_gnss() {
         state.have_origin = true;
     }
 
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Posting gnss: %d %d", gnss_data.lat, gnss_data.lon);
     AP::gps().handle_external(gps);
 }
 
