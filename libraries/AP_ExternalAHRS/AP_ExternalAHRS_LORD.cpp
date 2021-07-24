@@ -28,11 +28,10 @@
 
 #if HAL_EXTERNAL_AHRS_ENABLED
 
-extern
-const AP_HAL::HAL & hal;
+extern const AP_HAL::HAL &hal;
 
-AP_ExternalAHRS_LORD::AP_ExternalAHRS_LORD(AP_ExternalAHRS * _frontend,
-    AP_ExternalAHRS::state_t & _state): AP_ExternalAHRS_backend(_frontend, _state) {
+AP_ExternalAHRS_LORD::AP_ExternalAHRS_LORD(AP_ExternalAHRS* _frontend,
+    AP_ExternalAHRS::state_t &_state): AP_ExternalAHRS_backend(_frontend, _state) {
     auto &sm = AP::serialmanager();
     uart = sm.find_serial(AP_SerialManager::SerialProtocol_AHRS, 0);
     
@@ -44,7 +43,7 @@ AP_ExternalAHRS_LORD::AP_ExternalAHRS_LORD(AP_ExternalAHRS * _frontend,
         return;
     }
 
-    if (!hal.scheduler -> thread_create(FUNCTOR_BIND_MEMBER( & AP_ExternalAHRS_LORD::update_thread, void), "AHRS", 2048, AP_HAL::Scheduler::PRIORITY_SPI, 0)) {
+    if (!hal.scheduler -> thread_create(FUNCTOR_BIND_MEMBER(&AP_ExternalAHRS_LORD::update_thread, void), "AHRS", 2048, AP_HAL::Scheduler::PRIORITY_SPI, 0)) {
         AP_HAL::panic("Failed to start ExternalAHRS update thread");
     }
 
@@ -65,11 +64,13 @@ void AP_ExternalAHRS_LORD::update_thread() {
     }
 }
 
+const uint8_t config_packet[] = { 0x75, 0x65, 0xC, 0x47, 0x13, 0x8, 0x1, 0x5, 0x17, 0x0, 0xA, 0x6, 0x0, 0xA, 0x4, 0x0, 0xA, 0x5, 0x0, 0xA, 0xA, 0x0, 0xA, 0x13, 0x9, 0x1, 0x5, 0x9, 0x0, 0x1, 0xB, 0x0, 0x1, 0x3, 0x0, 0x1, 0x7, 0x0, 0x1, 0x5, 0x0, 0x1, 0x3, 0x8, 0x3, 0x3, 0x9, 0x3, 0x5, 0x11, 0x1, 0x1, 0x1, 0x5, 0x11, 0x1, 0x2, 0x1, 0x5, 0x11, 0x1, 0x3, 0x0, 0x4, 0x11, 0x3, 0x1, 0x4, 0x11, 0x3, 0x2, 0x4, 0x11, 0x3, 0x3, 0xB2, 0x74, };
+
 void AP_ExternalAHRS_LORD::send_config() {
-    
+    uart->write((const char*) config_packet);
 }
 
-//use all available bytes to continue building packets where we left off last loop
+// Builds packets by looking at each individual byte, once a full packet has been read in it checks the checksum then handles the packet.
 void AP_ExternalAHRS_LORD::build_packet() {
     uint64_t nbytes = uart -> available();
     while (nbytes--> 0) {
@@ -78,13 +79,13 @@ void AP_ExternalAHRS_LORD::build_packet() {
             default:
             case ParseState::WaitingFor_SyncOne:
                 if (b == SYNC_ONE) {
-                    message_in.packet.header[0] = 0x75;
+                    message_in.packet.header[0] = b;
                     message_in.state = ParseState::WaitingFor_SyncTwo;
                 }
                 break;
             case ParseState::WaitingFor_SyncTwo:
                 if (b == SYNC_TWO) {
-                    message_in.packet.header[1] = 0x65;
+                    message_in.packet.header[1] = b;
                     message_in.state = ParseState::WaitingFor_Descriptor;
                 }
                 break;
@@ -118,7 +119,7 @@ void AP_ExternalAHRS_LORD::build_packet() {
     }
 }
 
-//gets checksum and compares it to curr packet
+// returns true if the fletcher checksum for the packet is valid, else false.
 bool AP_ExternalAHRS_LORD::valid_packet(LORD_Packet & packet) {
     uint8_t checksumByte1 = 0;
     uint8_t checksumByte2 = 0;
@@ -136,25 +137,27 @@ bool AP_ExternalAHRS_LORD::valid_packet(LORD_Packet & packet) {
     return packet.checksum[0] == checksumByte1 && packet.checksum[1] == checksumByte2;
 }
 
-void AP_ExternalAHRS_LORD::handle_packet(LORD_Packet & packet) {
+// Calls the correct functions based on the packet descriptor of the packet
+void AP_ExternalAHRS_LORD::handle_packet(LORD_Packet& packet) {
     switch ((DescriptorSet) packet.header[2]) {
-    case DescriptorSet::IMUData:
-        handle_imu(packet);
-        post_imu();
-        break;
-    case DescriptorSet::GNSSData:
-        handle_gnss(packet);
-        post_gnss();
-        break;
-    case DescriptorSet::EstimationData:
-    case DescriptorSet::BaseCommand:
-    case DescriptorSet::DMCommand:
-    case DescriptorSet::SystemCommand:
-        break;
+        case DescriptorSet::IMUData:
+            handle_imu(packet);
+            post_imu();
+            break;
+        case DescriptorSet::GNSSData:
+            handle_gnss(packet);
+            post_gnss();
+            break;
+        case DescriptorSet::EstimationData:
+        case DescriptorSet::BaseCommand:
+        case DescriptorSet::DMCommand:
+        case DescriptorSet::SystemCommand:
+            break;
     }
 }
 
-void AP_ExternalAHRS_LORD::handle_imu(LORD_Packet & packet) {
+// Collects data from an imu packet into `imu_data`
+void AP_ExternalAHRS_LORD::handle_imu(LORD_Packet& packet) {
     for (uint8_t i = 0; i < packet.header[3]; i += packet.payload[i]) {
         switch (packet.payload[i + 1]) {
             // Scaled Ambient Pressure
@@ -186,6 +189,7 @@ void AP_ExternalAHRS_LORD::handle_imu(LORD_Packet & packet) {
     }
 }
 
+// Posts data from an imu packet to `state` and `handle_external` methods
 void AP_ExternalAHRS_LORD::post_imu() {
     {
         WITH_SEMAPHORE(state.sem);
@@ -219,7 +223,8 @@ void AP_ExternalAHRS_LORD::post_imu() {
     }
 }
 
-void AP_ExternalAHRS_LORD::handle_gnss(LORD_Packet & packet) {
+// Collects data from an gnss packet into `gnss_data`
+void AP_ExternalAHRS_LORD::handle_gnss(LORD_Packet &packet) {
     for (uint8_t i = 0; i < packet.header[3]; i += packet.payload[i]) {
         switch (packet.payload[i + 1]) {
             // GPS Time
@@ -281,6 +286,7 @@ void AP_ExternalAHRS_LORD::handle_gnss(LORD_Packet & packet) {
     }
 }
 
+// Posts data from a gnss packet to `state` and `handle_external` methods
 void AP_ExternalAHRS_LORD::post_gnss() {
     AP_ExternalAHRS::gps_data_message_t gps;
     
@@ -371,7 +377,7 @@ Quaternion AP_ExternalAHRS_LORD::populate_quaternion(uint8_t* data, uint8_t offs
 }
 
 float AP_ExternalAHRS_LORD::extract_float(uint8_t* data, uint8_t offset) {
-    uint32_t tmp = be32toh_ptr( & data[offset]);
+    uint32_t tmp = be32toh_ptr(&data[offset]);
 
     return *reinterpret_cast<float*>(&tmp);
 }

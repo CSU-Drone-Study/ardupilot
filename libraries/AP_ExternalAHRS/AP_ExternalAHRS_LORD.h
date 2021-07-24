@@ -120,7 +120,6 @@ private:
     void post_imu();
     void post_gnss();
 
-
     Vector3f populate_vector(uint8_t* data, uint8_t offset);
     Quaternion populate_quaternion(uint8_t* data, uint8_t offset);
     float extract_float(uint8_t* data, uint8_t offset);
