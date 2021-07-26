@@ -385,7 +385,7 @@ float AP_ExternalAHRS_LORD::extract_float(uint8_t *data, uint8_t offset) {
 double AP_ExternalAHRS_LORD::extract_double(uint8_t *data, uint8_t offset) {
     uint64_t tmp = be64toh_ptr(&data[offset]);
 
-    return *reinterpret_cast<float*>(&tmp);
+    return *reinterpret_cast<double*>(&tmp);
 }
 
 #endif // HAL_EXTERNAL_AHRS_ENABLED
