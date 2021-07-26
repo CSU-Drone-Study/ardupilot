@@ -111,7 +111,6 @@ private:
     } gnss_data;
 
     void send_config();
-    
     void build_packet();
     bool valid_packet(LORD_Packet &packet);
     void handle_packet(LORD_Packet &packet);

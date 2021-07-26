@@ -30,7 +30,7 @@
 
 extern const AP_HAL::HAL &hal;
 
-AP_ExternalAHRS_LORD::AP_ExternalAHRS_LORD(AP_ExternalAHRS* _frontend,
+AP_ExternalAHRS_LORD::AP_ExternalAHRS_LORD(AP_ExternalAHRS *_frontend,
     AP_ExternalAHRS::state_t &_state): AP_ExternalAHRS_backend(_frontend, _state) {
     auto &sm = AP::serialmanager();
     uart = sm.find_serial(AP_SerialManager::SerialProtocol_AHRS, 0);
@@ -333,7 +333,7 @@ bool AP_ExternalAHRS_LORD::initialised(void) const {
     return true;
 }
 
-bool AP_ExternalAHRS_LORD::pre_arm_check(char* failure_msg, uint8_t failure_msg_len) const {
+bool AP_ExternalAHRS_LORD::pre_arm_check(char *failure_msg, uint8_t failure_msg_len) const {
     return true;
 }
 
@@ -345,7 +345,7 @@ void AP_ExternalAHRS_LORD::send_status_report(mavlink_channel_t chan) const {
     return;
 }
 
-Vector3f AP_ExternalAHRS_LORD::populate_vector(uint8_t* data, uint8_t offset) {
+Vector3f AP_ExternalAHRS_LORD::populate_vector(uint8_t *data, uint8_t offset) {
     Vector3f vector;
     uint32_t tmp[3];
 
@@ -360,7 +360,7 @@ Vector3f AP_ExternalAHRS_LORD::populate_vector(uint8_t* data, uint8_t offset) {
     return vector;
 }
 
-Quaternion AP_ExternalAHRS_LORD::populate_quaternion(uint8_t* data, uint8_t offset) {
+Quaternion AP_ExternalAHRS_LORD::populate_quaternion(uint8_t *data, uint8_t offset) {
     Quaternion quat;
     uint32_t tmp[4];
 
@@ -376,21 +376,16 @@ Quaternion AP_ExternalAHRS_LORD::populate_quaternion(uint8_t* data, uint8_t offs
     return quat;
 }
 
-float AP_ExternalAHRS_LORD::extract_float(uint8_t* data, uint8_t offset) {
+float AP_ExternalAHRS_LORD::extract_float(uint8_t *data, uint8_t offset) {
     uint32_t tmp = be32toh_ptr(&data[offset]);
 
     return *reinterpret_cast<float*>(&tmp);
 }
 
-double AP_ExternalAHRS_LORD::extract_double(uint8_t* data, uint8_t offset) {
-    // TODO: Do something better here to handle endianess
-    #if __BYTE_ORDER__ == __LITTLE_ENDIAN
-        uint64_t tmp = (uint64_t) be32toh_ptr(&data[offset]) << 32 | be32toh_ptr(&data[offset+4]);
-    #elif __BYTE_ORDER__ == __BIG_ENDIAN
-        uint64_t tmp = (uint64_t) be32toh_ptr(&data[offset+4]) << 32 | be32toh_ptr(&data[offset]);
-    #endif
+double AP_ExternalAHRS_LORD::extract_double(uint8_t *data, uint8_t offset) {
+    uint64_t tmp = be64toh_ptr(&data[offset]);
 
-    return *reinterpret_cast<double*>(&tmp);
+    return *reinterpret_cast<float*>(&tmp);
 }
 
 #endif // HAL_EXTERNAL_AHRS_ENABLED
