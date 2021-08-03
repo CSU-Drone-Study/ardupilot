@@ -59,6 +59,7 @@ void AP_ExternalAHRS_LORD::update_thread() {
     }
 
     while (true) {
+        read_imu();
         build_packet();
         hal.scheduler -> delay(1);
     }
@@ -70,42 +71,60 @@ void AP_ExternalAHRS_LORD::send_config() {
     uart->write((const char*) config_packet);
 }
 
+// Read all available bytes into ring buffer
+void AP_ExternalAHRS_LORD::read_imu() {
+    uint32_t amountRead = uart -> read(tempData, bufferSize);
+    buffer.write(tempData, amountRead);
+}
+
 // Builds packets by looking at each individual byte, once a full packet has been read in it checks the checksum then handles the packet.
 void AP_ExternalAHRS_LORD::build_packet() {
-    uint64_t nbytes = uart -> available();
-    while (nbytes--> 0) {
-        uint8_t b = uart -> read();
+    uint64_t nbytes = buffer.available();
+    while (nbytes-- > 0) {
+        uint8_t* b = 0x00;
+        bool goodRead = buffer.read_byte(b);
+        if(!goodRead)
+            continue;
         switch (message_in.state) {
             default:
             case ParseState::WaitingFor_SyncOne:
-                if (b == SYNC_ONE) {
-                    message_in.packet.header[0] = b;
+                hal.console->printf("1\n");
+                if (*b == SYNC_ONE) {
+                    message_in.packet.header[0] = *b;
                     message_in.state = ParseState::WaitingFor_SyncTwo;
                 }
                 break;
             case ParseState::WaitingFor_SyncTwo:
-                if (b == SYNC_TWO) {
-                    message_in.packet.header[1] = b;
+                hal.console->printf("2\n");
+                if (*b == SYNC_TWO) {
+                    message_in.packet.header[1] = *b;
                     message_in.state = ParseState::WaitingFor_Descriptor;
+                }
+                else {
+                    message_in.state = ParseState::WaitingFor_SyncOne;
                 }
                 break;
             case ParseState::WaitingFor_Descriptor:
-                message_in.packet.header[2] = b;
+                hal.console->printf("3\n");
+                message_in.packet.header[2] = *b;
                 message_in.state = ParseState::WaitingFor_PayloadLength;
                 break;
             case ParseState::WaitingFor_PayloadLength:
-                message_in.packet.header[3] = b;
+                hal.console->printf("4\n");
+                message_in.packet.header[3] = *b;
                 message_in.state = ParseState::WaitingFor_Data;
                 break;
             case ParseState::WaitingFor_Data:
-                message_in.packet.payload[message_in.index++] = b;
+                hal.console->printf("5\n");
+                message_in.packet.payload[message_in.index++] = *b;
                 if (message_in.index >= message_in.packet.header[3]) {
                     message_in.state = ParseState::WaitingFor_Checksum;
                     message_in.index = 0;
                 }
                 break;
             case ParseState::WaitingFor_Checksum:
-                message_in.packet.checksum[message_in.index++] = b;
+                hal.console->printf("6\n");
+                message_in.packet.checksum[message_in.index++] = *b;
                 if (message_in.index >= 2) {
                     message_in.state = ParseState::WaitingFor_SyncOne;
                     message_in.index = 0;
@@ -145,8 +164,8 @@ void AP_ExternalAHRS_LORD::handle_packet(LORD_Packet& packet) {
             post_imu();
             break;
         case DescriptorSet::GNSSData:
-            handle_gnss(packet);
-            post_gnss();
+            //handle_gnss(packet);
+            //post_gnss();
             break;
         case DescriptorSet::EstimationData:
         case DescriptorSet::BaseCommand:

@@ -64,10 +64,16 @@ private:
 
     void update_thread();
 
+    // uart driver for LORD imu
     AP_HAL::UARTDriver *uart;
     uint32_t baudrate;
     int8_t port_num;
     bool portOpened = false;
+
+    // temporary buffers to hold bytes while packet is being built
+    static const uint32_t bufferSize = 1024;
+    ByteBuffer buffer{bufferSize};
+    uint8_t tempData[bufferSize];
 
     const uint8_t SYNC_ONE = 0x75;
     const uint8_t SYNC_TWO = 0x65;
@@ -111,6 +117,7 @@ private:
     } gnss_data;
 
     void send_config();
+    void read_imu();
     void build_packet();
     bool valid_packet(LORD_Packet &packet);
     void handle_packet(LORD_Packet &packet);
