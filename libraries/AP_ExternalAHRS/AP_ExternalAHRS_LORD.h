@@ -110,6 +110,20 @@ private:
         float speed_accuracy;
     } gnss_data;
 
+    //shared ring buffer
+    static const uint32_t bufferSize = 1024;
+    ByteBuffer buffer{bufferSize};
+    uint8_t tempData[bufferSize];
+    //packet building state variables
+    struct LORD_Packet currPacket;
+    enum SearchPhase { sync, payloadSize, payloadAndChecksum };
+    SearchPhase currPhase = sync;
+    int searchBytes = 1;
+    //sync bytes phase
+    const uint8_t syncByte1 = 0x75;
+    const uint8_t syncByte2 = 0x65;
+    uint8_t nextSyncByte = syncByte1;
+
     void send_config();
     void build_packet();
     bool valid_packet(LORD_Packet &packet);
@@ -118,6 +132,8 @@ private:
     void handle_gnss(LORD_Packet &packet);
     void post_imu();
     void post_gnss();
+    void readIMU();
+
 
     Vector3f populate_vector(uint8_t* data, uint8_t offset);
     Quaternion populate_quaternion(uint8_t* data, uint8_t offset);

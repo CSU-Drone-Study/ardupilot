@@ -55,10 +55,11 @@ void AP_ExternalAHRS_LORD::update_thread() {
     if (!portOpened) {
         portOpened = true;
         uart -> begin(baudrate);
-        send_config();
+        //send_config();
     }
 
     while (true) {
+        readIMU();
         build_packet();
         hal.scheduler -> delay(1);
     }
@@ -70,50 +71,58 @@ void AP_ExternalAHRS_LORD::send_config() {
     uart->write((const char*) config_packet);
 }
 
+//read all available bytes into ring buffer.
+void AP_ExternalAHRS_LORD::readIMU() {
+    uint32_t amountRead = uart -> read(tempData, bufferSize);
+    buffer.write(tempData, amountRead);
+}
+
 // Builds packets by looking at each individual byte, once a full packet has been read in it checks the checksum then handles the packet.
 void AP_ExternalAHRS_LORD::build_packet() {
-    uint64_t nbytes = uart -> available();
-    while (nbytes--> 0) {
-        uint8_t b = uart -> read();
-        switch (message_in.state) {
-            default:
-            case ParseState::WaitingFor_SyncOne:
-                if (b == SYNC_ONE) {
-                    message_in.packet.header[0] = b;
-                    message_in.state = ParseState::WaitingFor_SyncTwo;
-                }
-                break;
-            case ParseState::WaitingFor_SyncTwo:
-                if (b == SYNC_TWO) {
-                    message_in.packet.header[1] = b;
-                    message_in.state = ParseState::WaitingFor_Descriptor;
-                }
-                break;
-            case ParseState::WaitingFor_Descriptor:
-                message_in.packet.header[2] = b;
-                message_in.state = ParseState::WaitingFor_PayloadLength;
-                break;
-            case ParseState::WaitingFor_PayloadLength:
-                message_in.packet.header[3] = b;
-                message_in.state = ParseState::WaitingFor_Data;
-                break;
-            case ParseState::WaitingFor_Data:
-                message_in.packet.payload[message_in.index++] = b;
-                if (message_in.index >= message_in.packet.header[3]) {
-                    message_in.state = ParseState::WaitingFor_Checksum;
-                    message_in.index = 0;
-                }
-                break;
-            case ParseState::WaitingFor_Checksum:
-                message_in.packet.checksum[message_in.index++] = b;
-                if (message_in.index >= 2) {
-                    message_in.state = ParseState::WaitingFor_SyncOne;
-                    message_in.index = 0;
-
-                    if (valid_packet(message_in.packet)) {
-                        handle_packet(message_in.packet);
+   while(buffer.available() >= (uint32_t)searchBytes) {     //when peek location is in buffer range
+        switch (currPhase) { //monitors where we are in the packet reading process
+            case sync: { //reads and syncs bytes, switches state to continue processing payload size
+                bool good = buffer.read_byte(tempData);
+                if(!good) break; //byte not successfully read
+                if (tempData[0] == nextSyncByte) {
+                    if (nextSyncByte == syncByte2) { //if it is e
+                        nextSyncByte = syncByte1; //switch it back to u
+                        currPacket.header[0] = 0x75; //u  //begin building current packet header
+                        currPacket.header[1] = 0x65; //e
+                        currPhase = payloadSize;
+                        searchBytes = 2;
+                    } else {
+                        nextSyncByte = syncByte2; //TODO ??
                     }
+                } else {
+                    nextSyncByte = syncByte1;
                 }
+            }
+                break;
+            case payloadSize: { //finishes header and switches state to payloadAndChecksum
+                buffer.peekbytes(tempData, searchBytes);
+                currPacket.header[2] = tempData[0]; //descriptor set byte
+                currPacket.header[3] = tempData[1]; //payload length byte
+                searchBytes = tempData[1] + 4; //next time we need to peek the second half of the header (which we already peeked) + payload + checksum
+                currPhase = payloadAndChecksum;
+            }
+                break;
+            case payloadAndChecksum: { //builds payload and checksum
+                buffer.peekbytes(tempData, searchBytes);
+                //copy in the payload and checksum, skip second half of header
+                for (int i = 2; i < searchBytes - 2; i++) { //off by 2 because of way header was read
+                    currPacket.payload[i - 2] = tempData[i];
+                }
+                currPacket.checksum[0] = tempData[searchBytes - 2]; //MSB
+                currPacket.checksum[1] = tempData[searchBytes - 1]; //LSB
+                //if checksum is good we can move read pointer, otherwise we leave all those bytes and start after the last sync bytes- handles partial packets
+                if (valid_packet(currPacket)) {
+                    handle_packet(currPacket);
+                    buffer.read(tempData, searchBytes);
+                }
+                currPhase = sync; //ready to build next packet
+                searchBytes = 1;  //read from beginning
+            }
                 break;
         }
     }
@@ -145,8 +154,8 @@ void AP_ExternalAHRS_LORD::handle_packet(LORD_Packet& packet) {
             post_imu();
             break;
         case DescriptorSet::GNSSData:
-            handle_gnss(packet);
-            post_gnss();
+            //handle_gnss(packet);
+            //post_gnss();
             break;
         case DescriptorSet::EstimationData:
         case DescriptorSet::BaseCommand:
