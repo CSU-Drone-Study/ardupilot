@@ -55,7 +55,7 @@ void AP_ExternalAHRS_LORD::update_thread() {
     if (!portOpened) {
         portOpened = true;
         uart -> begin(baudrate);
-        //send_config();
+        send_config();
     }
 
     while (true) {
@@ -154,8 +154,8 @@ void AP_ExternalAHRS_LORD::handle_packet(LORD_Packet& packet) {
             post_imu();
             break;
         case DescriptorSet::GNSSData:
-            //handle_gnss(packet);
-            //post_gnss();
+            handle_gnss(packet);
+            post_gnss();
             break;
         case DescriptorSet::EstimationData:
         case DescriptorSet::BaseCommand:
