@@ -307,6 +307,9 @@ void AP_ExternalAHRS_LORD::post_gnss() {
     gps.ned_vel_down = gnss_data.ned_velocity_down;
     gps.horizontal_vel_accuracy = gnss_data.speed_accuracy;
 
+    gps.hdop = gnss_data.hdop;
+    gps.vdop = gnss_data.vdop;
+
     if (gps.fix_type >= 3 && !state.have_origin) {
         WITH_SEMAPHORE(state.sem);
         state.origin = Location{int32_t(gnss_data.lat),
