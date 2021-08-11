@@ -70,13 +70,13 @@ private:
     int8_t port_num;
     bool portOpened = false;
 
+    const uint8_t SYNC_ONE = 0x75;
+    const uint8_t SYNC_TWO = 0x65;
+
     // temporary buffers to hold bytes while packet is being built
     static const uint32_t bufferSize = 1024;
     ByteBuffer buffer{bufferSize};
     uint8_t tempData[bufferSize];
-
-    const uint8_t SYNC_ONE = 0x75;
-    const uint8_t SYNC_TWO = 0x65;
 
     struct LORD_Packet {
         uint8_t header[4];
@@ -87,7 +87,7 @@ private:
     struct {
         LORD_Packet packet;
         ParseState state;
-        uint8_t index;
+        uint32_t searchBytes = 1;
     } message_in;
 
     struct {

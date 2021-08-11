@@ -79,25 +79,20 @@ void AP_ExternalAHRS_LORD::read_imu() {
 
 // Builds packets by looking at each individual byte, once a full packet has been read in it checks the checksum then handles the packet.
 void AP_ExternalAHRS_LORD::build_packet() {
-    uint64_t nbytes = buffer.available();
-    while (nbytes-- > 0) {
-        uint8_t* b = 0x00;
-        bool goodRead = buffer.read_byte(b);
-        if(!goodRead)
-            continue;
+    while (buffer.available() >= message_in.searchBytes) {
         switch (message_in.state) {
             default:
             case ParseState::WaitingFor_SyncOne:
-                hal.console->printf("1\n");
-                if (*b == SYNC_ONE) {
-                    message_in.packet.header[0] = *b;
+                buffer.read(tempData, message_in.searchBytes);
+                if (tempData[0] == SYNC_ONE) {
+                    message_in.packet.header[0] = SYNC_ONE;
                     message_in.state = ParseState::WaitingFor_SyncTwo;
                 }
                 break;
             case ParseState::WaitingFor_SyncTwo:
-                hal.console->printf("2\n");
-                if (*b == SYNC_TWO) {
-                    message_in.packet.header[1] = *b;
+                buffer.read(tempData, message_in.searchBytes);
+                if (tempData[0] == SYNC_TWO) {
+                    message_in.packet.header[1] = SYNC_TWO;
                     message_in.state = ParseState::WaitingFor_Descriptor;
                 }
                 else {
@@ -105,33 +100,27 @@ void AP_ExternalAHRS_LORD::build_packet() {
                 }
                 break;
             case ParseState::WaitingFor_Descriptor:
-                hal.console->printf("3\n");
-                message_in.packet.header[2] = *b;
+                buffer.read(tempData, message_in.searchBytes);
+                message_in.packet.header[2] = tempData[0];
                 message_in.state = ParseState::WaitingFor_PayloadLength;
                 break;
             case ParseState::WaitingFor_PayloadLength:
-                hal.console->printf("4\n");
-                message_in.packet.header[3] = *b;
+                buffer.read(tempData, message_in.searchBytes);
+                message_in.packet.header[3] = tempData[0];
                 message_in.state = ParseState::WaitingFor_Data;
+                message_in.searchBytes = tempData[0];
                 break;
             case ParseState::WaitingFor_Data:
-                hal.console->printf("5\n");
-                message_in.packet.payload[message_in.index++] = *b;
-                if (message_in.index >= message_in.packet.header[3]) {
-                    message_in.state = ParseState::WaitingFor_Checksum;
-                    message_in.index = 0;
-                }
+                buffer.read(message_in.packet.payload, message_in.searchBytes);
+                message_in.state = ParseState::WaitingFor_Checksum;
+                message_in.searchBytes = 2;
                 break;
             case ParseState::WaitingFor_Checksum:
-                hal.console->printf("6\n");
-                message_in.packet.checksum[message_in.index++] = *b;
-                if (message_in.index >= 2) {
-                    message_in.state = ParseState::WaitingFor_SyncOne;
-                    message_in.index = 0;
-
-                    if (valid_packet(message_in.packet)) {
-                        handle_packet(message_in.packet);
-                    }
+                buffer.read(message_in.packet.checksum, message_in.searchBytes);
+                message_in.state = ParseState::WaitingFor_SyncOne;
+                message_in.searchBytes = 1;
+                if (valid_packet(message_in.packet)) {
+                    handle_packet(message_in.packet);
                 }
                 break;
         }
