@@ -29,7 +29,6 @@ protected:
 
     void send_aoa_ssa();
     void send_attitude() const override;
-    void send_simstate() const override;
     void send_wind() const;
 
     bool persist_streamrates() const override { return true; }
@@ -63,5 +62,14 @@ private:
     float vfr_hud_airspeed() const override;
     int16_t vfr_hud_throttle() const override;
     float vfr_hud_climbrate() const override;
-
+    
+#if HAL_HIGH_LATENCY2_ENABLED
+    int16_t high_latency_target_altitude() const override;
+    uint8_t high_latency_tgt_heading() const override;
+    uint16_t high_latency_tgt_dist() const override;
+    uint8_t high_latency_tgt_airspeed() const override;
+    uint8_t high_latency_wind_speed() const override;
+    uint8_t high_latency_wind_direction() const override;
+    int8_t high_latency_air_temperature() const override;
+#endif // HAL_HIGH_LATENCY2_ENABLED
 };

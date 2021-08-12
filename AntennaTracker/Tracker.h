@@ -86,7 +86,7 @@ private:
     AP_Logger logger;
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-    SITL::SITL sitl;
+    SITL::SIM sitl;
 #endif
     
     /**
@@ -232,6 +232,7 @@ private:
     void tracking_update_pressure(const mavlink_scaled_pressure_t &msg);
     void tracking_manual_control(const mavlink_manual_control_t &msg);
     void update_armed_disarmed() const;
+    bool get_pan_tilt_norm(float &pan_norm, float &tilt_norm) const override;
 
     // Arming/Disarming management class
     AP_Arming_Tracker arming;

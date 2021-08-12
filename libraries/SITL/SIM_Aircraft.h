@@ -22,7 +22,6 @@
 
 #include "SITL.h"
 #include "SITL_Input.h"
-#include <AP_Terrain/AP_Terrain.h>
 #include "SIM_Sprayer.h"
 #include "SIM_Gripper_Servo.h"
 #include "SIM_Gripper_EPM.h"
@@ -33,6 +32,7 @@
 #include "SIM_Buzzer.h"
 #include "SIM_Battery.h"
 #include <Filter/Filter.h>
+#include "SIM_JSON_Master.h"
 
 namespace SITL {
 
@@ -127,7 +127,8 @@ public:
 
     const Location &get_location() const { return location; }
 
-    const Vector3d &get_position() const { return position; }
+    // get position relative to home
+    Vector3d get_position_relhome() const;
 
     // distance the rangefinder is perceiving
     float rangefinder_range() const;
@@ -152,7 +153,10 @@ public:
     float get_battery_voltage() const { return battery_voltage; }
 
 protected:
-    SITL *sitl;
+    SIM *sitl;
+    // origin of position vector
+    Location origin;
+    // home location
     Location home;
     bool home_is_set;
     Location location;
@@ -176,6 +180,7 @@ protected:
     float battery_current;
     float local_ground_level;            // ground level at local position
     bool lock_step_scheduled;
+    uint32_t last_one_hz_ms;
 
     // battery model
     Battery battery;
@@ -243,7 +248,6 @@ protected:
 
     bool use_smoothing;
 
-    AP_Terrain *terrain;
     float ground_height_difference() const;
 
     virtual bool on_ground() const;

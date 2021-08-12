@@ -27,6 +27,10 @@
 
 #define GCS_DEBUG_SEND_MESSAGE_TIMINGS 0
 
+#ifndef HAL_HIGH_LATENCY2_ENABLED
+#define HAL_HIGH_LATENCY2_ENABLED !HAL_MINIMIZE_FEATURES
+#endif
+
 #ifndef HAL_NO_GCS
 
 // macros used to determine if a message will fit in the space available.
@@ -241,7 +245,7 @@ public:
     void send_scaled_pressure2();
     virtual void send_scaled_pressure3(); // allow sub to override this
     void send_sensor_offsets();
-    virtual void send_simstate() const;
+    void send_simstate() const;
     void send_sim_state() const;
     void send_ahrs();
     void send_battery2();
@@ -269,6 +273,9 @@ public:
     void send_generator_status() const;
     virtual void send_winch_status() const {};
     void send_water_depth() const;
+#if HAL_HIGH_LATENCY2_ENABLED
+    void send_high_latency() const;
+#endif // HAL_HIGH_LATENCY2_ENABLED
 
     // lock a channel, preventing use by MAVLink
     void lock(bool _lock) {
@@ -523,6 +530,16 @@ protected:
     virtual float vfr_hud_airspeed() const;
     virtual int16_t vfr_hud_throttle() const { return 0; }
     virtual float vfr_hud_alt() const;
+
+#if HAL_HIGH_LATENCY2_ENABLED
+    virtual int16_t high_latency_target_altitude() const { return 0; }
+    virtual uint8_t high_latency_tgt_heading() const { return 0; }
+    virtual uint16_t high_latency_tgt_dist() const { return 0; }
+    virtual uint8_t high_latency_tgt_airspeed() const { return 0; }
+    virtual uint8_t high_latency_wind_speed() const { return 0; }
+    virtual uint8_t high_latency_wind_direction() const { return 0; }
+    virtual int8_t high_latency_air_temperature() const { return 0; }
+#endif // HAL_HIGH_LATENCY2_ENABLED
 
     static constexpr const float magic_force_arm_value = 2989.0f;
     static constexpr const float magic_force_disarm_value = 21196.0f;
@@ -1078,7 +1095,14 @@ private:
 GCS &gcs();
 
 // send text when we do have a GCS
+#if !defined(HAL_BUILD_AP_PERIPH)
 #define GCS_SEND_TEXT(severity, format, args...) gcs().send_text(severity, format, ##args)
+#else
+extern "C" {
+void can_printf(const char *fmt, ...);
+}
+#define GCS_SEND_TEXT(severity, format, args...) (void)severity; can_printf(format, ##args)
+#endif
 
 #elif defined(HAL_BUILD_AP_PERIPH) && !defined(STM32F1)
 

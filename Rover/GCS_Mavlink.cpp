@@ -78,7 +78,7 @@ void GCS_MAVLINK_Rover::send_position_target_global_int()
     static constexpr uint16_t POSITION_TARGET_TYPEMASK_LAST_BYTE = 0xF000;
     static constexpr uint16_t TYPE_MASK = POSITION_TARGET_TYPEMASK_VX_IGNORE | POSITION_TARGET_TYPEMASK_VY_IGNORE | POSITION_TARGET_TYPEMASK_VZ_IGNORE |
                                           POSITION_TARGET_TYPEMASK_AX_IGNORE | POSITION_TARGET_TYPEMASK_AY_IGNORE | POSITION_TARGET_TYPEMASK_AZ_IGNORE |
-                                          POSITION_TARGET_TYPEMASK_FORCE_SET | POSITION_TARGET_TYPEMASK_YAW_IGNORE | POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE | POSITION_TARGET_TYPEMASK_LAST_BYTE;
+                                          POSITION_TARGET_TYPEMASK_YAW_IGNORE | POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE | POSITION_TARGET_TYPEMASK_LAST_BYTE;
     mavlink_msg_position_target_global_int_send(
         chan,
         AP_HAL::millis(), // time_boot_ms
@@ -342,6 +342,13 @@ bool GCS_MAVLINK_Rover::try_send_message(enum ap_message id)
         break;
     }
 
+    case MSG_AIS_VESSEL: {
+#if HAL_AIS_ENABLED
+        rover.g2.ais.send(chan);
+#endif
+        break;
+    }
+
     default:
         return GCS_MAVLINK::try_send_message(id);
     }
@@ -517,7 +524,8 @@ static const ap_message STREAM_PARAMS_msgs[] = {
     MSG_NEXT_PARAM
 };
 static const ap_message STREAM_ADSB_msgs[] = {
-    MSG_ADSB_VEHICLE
+    MSG_ADSB_VEHICLE,
+    MSG_AIS_VESSEL,
 };
 
 const struct GCS_MAVLINK::stream_entries GCS_MAVLINK::all_stream_entries[] = {
@@ -1054,3 +1062,53 @@ uint64_t GCS_MAVLINK_Rover::capabilities() const
             MAV_PROTOCOL_CAPABILITY_SET_ATTITUDE_TARGET |
             GCS_MAVLINK::capabilities());
 }
+
+#if HAL_HIGH_LATENCY2_ENABLED
+uint8_t GCS_MAVLINK_Rover::high_latency_tgt_heading() const
+{
+    const Mode *control_mode = rover.control_mode;
+    if (rover.control_mode->is_autopilot_mode()) {
+        // need to convert -180->180 to 0->360/2
+        return wrap_360(control_mode->wp_bearing()) / 2;
+    }
+    return 0;      
+}
+    
+uint16_t GCS_MAVLINK_Rover::high_latency_tgt_dist() const
+{
+    const Mode *control_mode = rover.control_mode;
+    if (rover.control_mode->is_autopilot_mode()) {
+        // return units are dm
+        return MIN((control_mode->get_distance_to_destination()) / 10, UINT16_MAX);
+    }
+    return 0;  
+}
+
+uint8_t GCS_MAVLINK_Rover::high_latency_tgt_airspeed() const
+{
+    const Mode *control_mode = rover.control_mode;
+    if (rover.control_mode->is_autopilot_mode()) {
+        // return units are m/s*5
+        return MIN((vfr_hud_airspeed() - control_mode->speed_error()) * 5, UINT8_MAX);
+    }
+    return 0;
+}
+
+uint8_t GCS_MAVLINK_Rover::high_latency_wind_speed() const
+{
+    if (rover.g2.windvane.enabled()) {
+        // return units are m/s*5
+        return MIN(rover.g2.windvane.get_true_wind_speed() * 5, UINT8_MAX);
+    }
+    return 0; 
+}
+
+uint8_t GCS_MAVLINK_Rover::high_latency_wind_direction() const
+{
+    if (rover.g2.windvane.enabled()) {
+        // return units are deg/2
+        return wrap_360(degrees(rover.g2.windvane.get_true_wind_direction_rad())) / 2;
+    }
+    return 0; 
+}
+#endif // HAL_HIGH_LATENCY2_ENABLED

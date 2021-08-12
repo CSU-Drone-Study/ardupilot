@@ -50,7 +50,7 @@
 #include <Filter/Filter.h>                  // Filter library
 #include <AP_Airspeed/AP_Airspeed.h>        // needed for AHRS build
 #include <AP_Vehicle/AP_Vehicle.h>          // needed for AHRS build
-#include <AP_InertialNav/AP_InertialNav.h>  // ArduPilot Mega inertial navigation library
+#include <AP_InertialNav/AP_InertialNav_NavEKF.h>  // ArduPilot Mega inertial navigation library
 #include <AC_WPNav/AC_WPNav.h>              // ArduCopter waypoint navigation library
 #include <AC_WPNav/AC_Loiter.h>             // ArduCopter Loiter Mode Library
 #include <AC_WPNav/AC_Circle.h>             // circle navigation library
@@ -120,7 +120,7 @@
 #if AC_FENCE == ENABLED
  # include <AC_Fence/AC_Fence.h>
 #endif
-#if AC_TERRAIN == ENABLED
+#if AP_TERRAIN_AVAILABLE
  # include <AP_Terrain/AP_Terrain.h>
 #endif
 #if OPTFLOW == ENABLED
@@ -220,6 +220,7 @@ public:
     friend class ModeThrow;
     friend class ModeZigZag;
     friend class ModeAutorotate;
+    friend class ModeTurtle;
 
     Copter(void);
 
@@ -304,7 +305,7 @@ private:
     AP_AHRS_View *ahrs_view;
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-    SITL::SITL sitl;
+    SITL::SIM sitl;
 #endif
 
     // Arming/Disarming management class
@@ -405,7 +406,6 @@ private:
     struct {
         uint8_t baro        : 1;    // true if baro is healthy
         uint8_t compass     : 1;    // true if compass is healthy
-        uint8_t primary_gps : 2;    // primary gps index
     } sensor_health;
 
     // Motor Output
@@ -516,7 +516,7 @@ private:
 #endif
 
     // terrain handling
-#if AP_TERRAIN_AVAILABLE && AC_TERRAIN && MODE_AUTO_ENABLED == ENABLED
+#if AP_TERRAIN_AVAILABLE && MODE_AUTO_ENABLED == ENABLED
     AP_Terrain terrain{mode_auto.mission};
 #endif
 
@@ -594,7 +594,8 @@ private:
         Failsafe_Action_RTL            = 2,
         Failsafe_Action_SmartRTL       = 3,
         Failsafe_Action_SmartRTL_Land  = 4,
-        Failsafe_Action_Terminate      = 5
+        Failsafe_Action_Terminate      = 5,
+        Failsafe_Action_Auto_DO_LAND_START = 6,
     };
 
     enum class FailsafeOption {
@@ -642,11 +643,13 @@ private:
                              uint8_t &task_count,
                              uint32_t &log_bit) override;
     void fast_loop() override;
+#ifdef ENABLE_SCRIPTING
     bool start_takeoff(float alt) override;
     bool set_target_location(const Location& target_loc) override;
     bool set_target_posvel_NED(const Vector3f& target_pos, const Vector3f& target_vel) override;
     bool set_target_velocity_NED(const Vector3f& vel_ned) override;
     bool set_target_angle_and_climbrate(float roll_deg, float pitch_deg, float yaw_deg, float climb_rate_ms, bool use_yaw_rate, float yaw_rate_degs) override;
+#endif // ENABLE_SCRIPTING
     void rc_loop();
     void throttle_loop();
     void update_batt_compass(void);
@@ -731,6 +734,7 @@ private:
     void set_mode_RTL_or_land_with_pause(ModeReason reason);
     void set_mode_SmartRTL_or_RTL(ModeReason reason);
     void set_mode_SmartRTL_or_land_with_pause(ModeReason reason);
+    void set_mode_auto_do_land_start_or_RTL(ModeReason reason);
     bool should_disarm_on_failsafe();
     void do_failsafe_action(Failsafe_Action action, ModeReason reason);
 
@@ -791,7 +795,7 @@ private:
 #if FRAME_CONFIG == HELI_FRAME
     void Log_Write_Heli(void);
 #endif
-    void Log_Write_GuidedTarget(ModeGuided::SubMode submode, const Vector3f& pos_target, const Vector3f& vel_target);
+    void Log_Write_GuidedTarget(ModeGuided::SubMode submode, const Vector3f& pos_target, bool terrain_alt, const Vector3f& vel_target, const Vector3f& accel_target);
     void Log_Write_SysID_Setup(uint8_t systemID_axis, float waveform_magnitude, float frequency_start, float frequency_stop, float time_fade_in, float time_const_freq, float time_record, float time_fade_out);
     void Log_Write_SysID_Data(float waveform_time, float waveform_sample, float waveform_freq, float angle_x, float angle_y, float angle_z, float accel_x, float accel_y, float accel_z);
     void Log_Write_Vehicle_Startup_Messages();
@@ -800,6 +804,7 @@ private:
     // mode.cpp
     bool set_mode(Mode::Number mode, ModeReason reason);
     bool set_mode(const uint8_t new_mode, const ModeReason reason) override;
+    ModeReason _last_reason;
     // called when an attempt to change into a mode is unsuccessful:
     void mode_change_failed(const Mode *mode, const char *reason);
     uint8_t get_mode() const override { return (uint8_t)flightmode->mode_number(); }
@@ -812,7 +817,7 @@ private:
 
     // motor_test.cpp
     void motor_test_output();
-    bool mavlink_motor_test_check(const GCS_MAVLINK &gcs_chan, bool check_rc);
+    bool mavlink_motor_control_check(const GCS_MAVLINK &gcs_chan, bool check_rc, const char* mode);
     MAV_RESULT mavlink_motor_test_start(const GCS_MAVLINK &gcs_chan, uint8_t motor_seq, uint8_t throttle_type, float throttle_value, float timeout_sec, uint8_t motor_count);
     void motor_test_stop();
 
@@ -977,6 +982,9 @@ private:
 #endif
 #if MODE_AUTOROTATE_ENABLED == ENABLED
     ModeAutorotate mode_autorotate;
+#endif
+#if MODE_TURTLE_ENABLED == ENABLED
+    ModeTurtle mode_turtle;
 #endif
 
     // mode.cpp

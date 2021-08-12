@@ -27,7 +27,9 @@
 #ifndef HAL_NO_UARTDRIVER
 #include <GCS_MAVLink/GCS.h>
 #endif
+
 #if HAL_USE_PWM == TRUE
+#include <SRV_Channel/SRV_Channel.h>
 
 using namespace ChibiOS;
 
@@ -59,7 +61,6 @@ static const eventmask_t EVT_PWM_SEND_NEXT  = EVENT_MASK(14);
  */
 void RCOutput::init()
 {
-    uint8_t pwm_count = AP_BoardConfig::get_pwm_count();
     for (auto &group : pwm_group_list) {
         const uint8_t i = &group - pwm_group_list;
         //Start Pwm groups
@@ -67,10 +68,12 @@ void RCOutput::init()
         group.dshot_event_mask = EVENT_MASK(i);
 
         for (uint8_t j = 0; j < 4; j++ ) {
+#if !APM_BUILD_TYPE(APM_BUILD_iofirmware)
             uint8_t chan = group.chan[j];
-            if (chan >= pwm_count) {
+            if (SRV_Channels::is_GPIO(chan+chan_offset)) {
                 group.chan[j] = CHAN_DISABLED;
             }
+#endif
             if (group.chan[j] != CHAN_DISABLED) {
                 num_fmu_channels = MAX(num_fmu_channels, group.chan[j]+1);
                 group.ch_mask |= (1U<<group.chan[j]);
@@ -582,14 +585,15 @@ void RCOutput::push_local(void)
                     period_us = group.dshot_pulse_time_us;
                 }
 #endif //#ifndef DISABLE_DSHOT
-                if (period_us > widest_pulse) {
-                    widest_pulse = period_us;
-                }
                 if (group.current_mode == MODE_PWM_ONESHOT ||
                     group.current_mode == MODE_PWM_ONESHOT125 ||
                     group.current_mode == MODE_NEOPIXEL ||
                     group.current_mode == MODE_PROFILED ||
                     is_dshot_protocol(group.current_mode)) {
+                    // only control widest pulse for oneshot and dshot
+                    if (period_us > widest_pulse) {
+                        widest_pulse = period_us;
+                    }
                     const uint8_t i = &group - pwm_group_list;
                     need_trigger |= (1U<<i);
                 }
@@ -960,6 +964,11 @@ void RCOutput::set_output_mode(uint16_t mask, const enum output_mode mode)
  */
 bool RCOutput::get_output_mode_banner(char banner_msg[], uint8_t banner_msg_len) const
 {
+    if (!hal.scheduler->is_system_initialized()) {
+        hal.util->snprintf(banner_msg, banner_msg_len, "RCOut: Initialising");
+        return true;
+    }
+
     // create array of each channel's mode
     output_mode ch_mode[chan_offset + NUM_GROUPS * ARRAY_SIZE(pwm_group::chan)] = {};
     bool have_nonzero_modes = false;
@@ -1145,16 +1154,14 @@ void RCOutput::dshot_send_groups(uint32_t time_out_us)
 
     bool command_sent = false;
     // queue up a command if there is one
-    if (!hal.util->get_soft_armed()
-        && _dshot_current_command.cycle == 0
+    if (_dshot_current_command.cycle == 0
         && _dshot_command_queue.pop(_dshot_current_command)) {
         // got a new command
     }
 
     for (auto &group : pwm_group_list) {
         // send a dshot command
-        if (!hal.util->get_soft_armed()
-            && is_dshot_protocol(group.current_mode)
+        if (is_dshot_protocol(group.current_mode)
             && dshot_command_is_active(group)) {
             command_sent = dshot_send_command(group, _dshot_current_command.command, _dshot_current_command.chan);
         // actually do a dshot send
@@ -1379,9 +1386,10 @@ void RCOutput::dshot_send(pwm_group &group, uint32_t time_out_us)
                     value = 0;
                 }
             }
+
+            // dshot values are from 48 to 2047. 48 means off.
             if (value != 0) {
-                // dshot values are from 48 to 2047. Zero means off.
-                value += 47;
+                value += DSHOT_ZERO_THROTTLE;
             }
 
             if (!armed) {

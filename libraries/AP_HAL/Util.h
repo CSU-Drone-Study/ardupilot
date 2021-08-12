@@ -8,7 +8,7 @@ class ExpandingString;
 class AP_HAL::Util {
 public:
     int snprintf(char* str, size_t size,
-                 const char *format, ...);
+                 const char *format, ...) FMT_PRINTF(4, 5);
 
     int vsnprintf(char* str, size_t size,
                   const char *format, va_list ap);
@@ -181,6 +181,9 @@ public:
 
     // request information on uart I/O
     virtual void uart_info(ExpandingString &str) {}
+
+    // generate Random values
+    virtual bool get_random_vals(uint8_t* data, size_t size) { return false; }
 
 protected:
     // we start soft_armed false, so that actuators don't send any

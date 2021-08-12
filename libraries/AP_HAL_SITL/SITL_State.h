@@ -44,6 +44,7 @@
 #include <SITL/SIM_RF_MAVLink.h>
 #include <SITL/SIM_RF_GYUS42v2.h>
 #include <SITL/SIM_VectorNav.h>
+#include <SITL/SIM_AIS.h>
 
 #include <SITL/SIM_Frsky_D.h>
 #include <SITL/SIM_CRSF.h>
@@ -180,7 +181,7 @@ private:
                      double speedN, double speedE, double speedD,
                      double yaw, bool have_lock);
     void _update_airspeed(float airspeed);
-    void _update_gps_instance(SITL::SITL::GPSType gps_type, const struct gps_data *d, uint8_t instance);
+    void _update_gps_instance(SITL::SIM::GPSType gps_type, const struct gps_data *d, uint8_t instance);
     void _check_rc_input(void);
     bool _read_rc_sitl_input();
     void _fdm_input_local(void);
@@ -204,7 +205,7 @@ private:
     Compass *_compass;
 
     SocketAPM _sitl_rc_in{true};
-    SITL::SITL *_sitl;
+    SITL::SIM *_sitl;
     uint16_t _rcin_port;
     uint16_t _fg_view_port;
     uint16_t _irlock_port;
@@ -308,7 +309,13 @@ private:
 
     // simulated VectorNav system:
     SITL::VectorNav *vectornav;
-    
+
+    // Ride along instances via JSON SITL backend
+    SITL::JSON_Master ride_along;
+
+    // simulated AIS stream
+    SITL::AIS *ais;
+
     // output socket for flightgear viewing
     SocketAPM fg_socket{true};
     

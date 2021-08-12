@@ -82,6 +82,11 @@ def options(opt):
         default=False,
         help='Configure as debug variant.')
 
+    g.add_option('--disable-watchdog',
+        action='store_true',
+        default=False,
+        help='Build with watchdog disabled.')
+
     g.add_option('--coverage',
                  action='store_true',
                  default=False,
@@ -163,6 +168,10 @@ submodules at specific revisions.
     g.add_option('--scripting-checks', action='store_true',
                  default=True,
                  help="Enable runtime scripting sanity checks")
+
+    g.add_option('--enable-onvif', action='store_true',
+                 default=False,
+                 help="Enables and sets up ONVIF camera control")
 
     g = opt.ap_groups['linux']
 
@@ -251,6 +260,16 @@ configuration in order to save typing.
         action='store_true',
         default=False,
         help='Configure without EKF3.')
+
+    g.add_option('--ekf-double',
+        action='store_true',
+        default=False,
+        help='Configure EKF as double precision.')
+
+    g.add_option('--ekf-single',
+        action='store_true',
+        default=False,
+        help='Configure EKF as single precision.')
     
     g.add_option('--static',
         action='store_true',
@@ -267,6 +286,10 @@ configuration in order to save typing.
 	    default=None,
 	    help='Extra hwdef.dat file for custom build.')
 
+    g.add_option('--assert-cc-version',
+                 default=None,
+                 help='fail configure if not using the specified gcc version')
+    
 def _collect_autoconfig_files(cfg):
     for m in sys.modules.values():
         paths = []
@@ -527,6 +550,7 @@ def _build_dynamic_sources(bld):
             ]
         )
 
+
     def write_version_header(tsk):
         bld = tsk.generator.bld
         return bld.write_version_header(tsk.outputs[0].abspath())
@@ -599,6 +623,9 @@ def _build_recursion(bld):
             dirs_to_recurse.append('Tools/AP_Periph')
 
     dirs_to_recurse.append('libraries/AP_Scripting')
+
+    if bld.env.ENABLE_ONVIF:
+        dirs_to_recurse.append('libraries/AP_ONVIF')
 
     for p in hal_dirs_patterns:
         dirs_to_recurse += collect_dirs_to_recurse(
@@ -681,7 +708,7 @@ for name in ('antennatracker', 'copter', 'heli', 'plane', 'rover', 'sub', 'blimp
         doc='builds %s programs' % name,
     )
 
-for program_group in ('all', 'bin', 'tools', 'examples', 'tests', 'benchmarks'):
+for program_group in ('all', 'bin', 'tool', 'examples', 'tests', 'benchmarks'):
     ardupilotwaf.build_command(program_group,
         program_group_list=program_group,
         doc='builds all programs of %s group' % program_group,

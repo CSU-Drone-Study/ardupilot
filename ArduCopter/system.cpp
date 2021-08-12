@@ -106,12 +106,6 @@ void Copter::init_ardupilot()
     AP::compass().set_log_bit(MASK_LOG_COMPASS);
     AP::compass().init();
 
-    // init Location class
-#if AP_TERRAIN_AVAILABLE && AC_TERRAIN
-    Location::set_terrain(&terrain);
-    wp_nav->set_terrain(&terrain);
-#endif
-
 #if AC_OAPATHPLANNER_ENABLED == ENABLED
     g2.oa.init();
 #endif
@@ -205,7 +199,6 @@ void Copter::init_ardupilot()
     if (!set_mode((enum Mode::Number)g.initial_mode.get(), ModeReason::INITIALISED)) {
         // set mode to STABILIZE will trigger mode change notification to pilot
         set_mode(Mode::Number::STABILIZE, ModeReason::UNAVAILABLE);
-        AP_Notify::events.user_mode_change_failed = 1;
     }
 
     // flag that initialisation has completed
@@ -473,6 +466,12 @@ void Copter::allocate_motors(void)
 #ifdef ENABLE_SCRIPTING
             motors = new AP_MotorsMatrix_6DoF_Scripting(copter.scheduler.get_loop_rate_hz());
             motors_var_info = AP_MotorsMatrix_6DoF_Scripting::var_info;
+#endif // ENABLE_SCRIPTING
+            break;
+case AP_Motors::MOTOR_FRAME_DYNAMIC_SCRIPTING_MATRIX:
+#ifdef ENABLE_SCRIPTING
+            motors = new AP_MotorsMatrix_Scripting_Dynamic(copter.scheduler.get_loop_rate_hz());
+            motors_var_info = AP_MotorsMatrix_Scripting_Dynamic::var_info;
 #endif // ENABLE_SCRIPTING
             break;
 #else // FRAME_CONFIG == HELI_FRAME

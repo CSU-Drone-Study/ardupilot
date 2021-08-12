@@ -168,9 +168,6 @@
  # define FS_EKF_THRESHOLD_DEFAULT      0.8f    // EKF failsafe's default compass and velocity variance threshold above which the EKF failsafe will be triggered
 #endif
 
-#ifndef EKF_ORIGIN_MAX_DIST_KM
- # define EKF_ORIGIN_MAX_DIST_KM        250   // EKF origin and home must be within 250km horizontally
-#endif
 #ifndef EKF_ORIGIN_MAX_ALT_KM
  # define EKF_ORIGIN_MAX_ALT_KM         50   // EKF origin and home must be within 50km vertically
 #endif
@@ -336,6 +333,12 @@
 // ZigZag - allow vehicle to fly in a zigzag manner with predefined point A B
 #ifndef MODE_ZIGZAG_ENABLED
 # define MODE_ZIGZAG_ENABLED !HAL_MINIMIZE_FEATURES
+#endif
+
+//////////////////////////////////////////////////////////////////////////////
+// Turtle - allow vehicle to be flipped over after a crash
+#ifndef MODE_TURTLE_ENABLED
+# define MODE_TURTLE_ENABLED !HAL_MINIMIZE_FEATURES && !defined(DISABLE_DSHOT) && FRAME_CONFIG != HELI_FRAME
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
@@ -658,11 +661,7 @@
  #define AC_RALLY   ENABLED
 #endif
 
-#ifndef AC_TERRAIN
- #define AC_TERRAIN ENABLED
-#endif
-
-#if AC_TERRAIN && !AC_RALLY
+#if AP_TERRAIN_AVAILABLE && !AC_RALLY
  #error Terrain relies on Rally which is disabled
 #endif
 
@@ -694,7 +693,7 @@
   #error ModeAuto requires ModeRTL which is disabled
 #endif
 
-#if AC_TERRAIN && !MODE_AUTO_ENABLED
+#if AP_TERRAIN_AVAILABLE && !MODE_AUTO_ENABLED
   #error Terrain requires ModeAuto which is disabled
 #endif
 

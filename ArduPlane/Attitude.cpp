@@ -312,26 +312,28 @@ void Plane::stabilize_yaw(float speed_scaler)
  */
 void Plane::stabilize_training(float speed_scaler)
 {
+    const float rexpo = roll_in_expo(false);
+    const float pexpo = pitch_in_expo(false);
     if (training_manual_roll) {
-        SRV_Channels::set_output_scaled(SRV_Channel::k_aileron, channel_roll->get_control_in());
+        SRV_Channels::set_output_scaled(SRV_Channel::k_aileron, rexpo);
     } else {
         // calculate what is needed to hold
         stabilize_roll(speed_scaler);
-        if ((nav_roll_cd > 0 && channel_roll->get_control_in() < SRV_Channels::get_output_scaled(SRV_Channel::k_aileron)) ||
-            (nav_roll_cd < 0 && channel_roll->get_control_in() > SRV_Channels::get_output_scaled(SRV_Channel::k_aileron))) {
+        if ((nav_roll_cd > 0 && rexpo < SRV_Channels::get_output_scaled(SRV_Channel::k_aileron)) ||
+            (nav_roll_cd < 0 && rexpo > SRV_Channels::get_output_scaled(SRV_Channel::k_aileron))) {
             // allow user to get out of the roll
-            SRV_Channels::set_output_scaled(SRV_Channel::k_aileron, channel_roll->get_control_in());
+            SRV_Channels::set_output_scaled(SRV_Channel::k_aileron, rexpo);
         }
     }
 
     if (training_manual_pitch) {
-        SRV_Channels::set_output_scaled(SRV_Channel::k_elevator, channel_pitch->get_control_in());
+        SRV_Channels::set_output_scaled(SRV_Channel::k_elevator, pexpo);
     } else {
         stabilize_pitch(speed_scaler);
-        if ((nav_pitch_cd > 0 && channel_pitch->get_control_in() < SRV_Channels::get_output_scaled(SRV_Channel::k_elevator)) ||
-            (nav_pitch_cd < 0 && channel_pitch->get_control_in() > SRV_Channels::get_output_scaled(SRV_Channel::k_elevator))) {
+        if ((nav_pitch_cd > 0 && pexpo < SRV_Channels::get_output_scaled(SRV_Channel::k_elevator)) ||
+            (nav_pitch_cd < 0 && pexpo > SRV_Channels::get_output_scaled(SRV_Channel::k_elevator))) {
             // allow user to get back to level
-            SRV_Channels::set_output_scaled(SRV_Channel::k_elevator, channel_pitch->get_control_in());
+            SRV_Channels::set_output_scaled(SRV_Channel::k_elevator, pexpo);
         }
     }
 
@@ -345,8 +347,10 @@ void Plane::stabilize_training(float speed_scaler)
  */
 void Plane::stabilize_acro(float speed_scaler)
 {
-    float roll_rate = (channel_roll->get_control_in()/4500.0f) * g.acro_roll_rate;
-    float pitch_rate = (channel_pitch->get_control_in()/4500.0f) * g.acro_pitch_rate;
+    const float rexpo = roll_in_expo(true);
+    const float pexpo = pitch_in_expo(true);
+    float roll_rate = (rexpo/float(SERVO_MAX)) * g.acro_roll_rate;
+    float pitch_rate = (pexpo/float(SERVO_MAX)) * g.acro_pitch_rate;
 
     /*
       check for special roll handling near the pitch poles
@@ -428,7 +432,7 @@ void Plane::stabilize()
     float speed_scaler = get_speed_scaler();
 
     uint32_t now = AP_HAL::millis();
-    if (quadplane.in_tailsitter_vtol_transition(now)) {
+    if (quadplane.tailsitter.in_vtol_transition(now)) {
         /*
           during transition to vtol in a tailsitter try to raise the
           nose while keeping the wings level
@@ -463,7 +467,7 @@ void Plane::stabilize()
                 control_mode == &mode_qrtl ||
                 control_mode == &mode_qacro ||
                 control_mode == &mode_qautotune) &&
-               !quadplane.in_tailsitter_vtol_transition(now)) {
+               !quadplane.tailsitter.in_vtol_transition(now)) {
         quadplane.control_run();
     } else {
         if (g.stick_mixing == STICK_MIXING_FBW && control_mode != &mode_stabilize) {
@@ -728,7 +732,7 @@ void Plane::update_load_factor(void)
         // no roll limits when inverted
         return;
     }
-    if (quadplane.tailsitter_active()) {
+    if (quadplane.tailsitter.active()) {
         // no limits while hovering
         return;
     }

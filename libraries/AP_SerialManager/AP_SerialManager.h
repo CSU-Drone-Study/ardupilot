@@ -151,6 +151,8 @@ public:
         SerialProtocol_ADSB = 35,
         SerialProtocol_AHRS = 36,
         SerialProtocol_SmartAudio = 37,
+        SerialProtocol_Torqeedo = 39,
+        SerialProtocol_AIS = 40,
         SerialProtocol_NumProtocols                    // must be the last value
     };
 

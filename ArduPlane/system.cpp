@@ -120,7 +120,11 @@ void Plane::init_ardupilot()
     // don't initialise aux rc output until after quadplane is setup as
     // that can change initial values of channels
     init_rc_out_aux();
-    
+
+    if (g2.oneshot_mask != 0) {
+        hal.rcout->set_output_mode(g2.oneshot_mask, AP_HAL::RCOutput::MODE_PWM_ONESHOT);
+    }
+
     // choose the nav controller
     set_nav_controller();
 
@@ -146,11 +150,6 @@ void Plane::init_ardupilot()
 #if AC_FENCE == ENABLED
     fence.init();
 #endif
-
-#if AP_TERRAIN_AVAILABLE
-    Location::set_terrain(&terrain);
-#endif
-
 }
 
 //********************************************************************************
@@ -203,8 +202,16 @@ void Plane::startup_ground(void)
 
 bool Plane::set_mode(Mode &new_mode, const ModeReason reason)
 {
+    // update last reason
+    const ModeReason last_reason = _last_reason;
+    _last_reason = reason;
+
     if (control_mode == &new_mode) {
         // don't switch modes if we are already in the correct mode.
+        // only make happy noise if using a difent method to switch, this stops beeping for repeated change mode requests from GCS
+        if ((reason != last_reason) && (reason != ModeReason::INITIALISED)) {
+            AP_Notify::events.user_mode_change = 1;
+        }
         return true;
     }
 
@@ -212,6 +219,10 @@ bool Plane::set_mode(Mode &new_mode, const ModeReason reason)
     if (&new_mode == &plane.mode_qautotune) {
         gcs().send_text(MAV_SEVERITY_INFO,"QAUTOTUNE disabled");
         set_mode(plane.mode_qhover, ModeReason::UNAVAILABLE);
+        // make sad noise
+        if (reason != ModeReason::INITIALISED) {
+            AP_Notify::events.user_mode_change_failed = 1;
+        }
         return false;
     }
 #endif
@@ -244,6 +255,10 @@ bool Plane::set_mode(Mode &new_mode, const ModeReason reason)
             // ignore result because if we fail we risk looping at the qautotune check above
             control_mode->enter();
         }
+        // make sad noise
+        if (reason != ModeReason::INITIALISED) {
+            AP_Notify::events.user_mode_change_failed = 1;
+        }
         return false;
     }
 
@@ -263,6 +278,10 @@ bool Plane::set_mode(Mode &new_mode, const ModeReason reason)
     notify_mode(*control_mode);
     gcs().send_message(MSG_HEARTBEAT);
 
+    // make happy noise
+    if (reason != ModeReason::INITIALISED) {
+        AP_Notify::events.user_mode_change = 1;
+    }
     return true;
 }
 
@@ -409,7 +428,7 @@ bool Plane::should_log(uint32_t mask)
  */
 int8_t Plane::throttle_percentage(void)
 {
-    if (quadplane.in_vtol_mode() && !quadplane.in_tailsitter_vtol_transition()) {
+    if (quadplane.in_vtol_mode() && !quadplane.tailsitter.in_vtol_transition()) {
         return quadplane.throttle_percentage();
     }
     float throttle = SRV_Channels::get_output_scaled(SRV_Channel::k_throttle);

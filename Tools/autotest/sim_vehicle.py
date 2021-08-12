@@ -298,6 +298,9 @@ def do_build(opts, frame_options):
     if opts.debug:
         cmd_configure.append("--debug")
 
+    if opts.enable_onvif and 'antennatracker' in frame_options["waf_target"]:
+        cmd_configure.append("--enable-onvif")
+
     if opts.OSD:
         cmd_configure.append("--enable-sfml")
         cmd_configure.append("--sitl-osd")
@@ -326,6 +329,12 @@ def do_build(opts, frame_options):
 
     if opts.postype_single:
         cmd_configure.append("--postype-single")
+
+    if opts.ekf_double:
+        cmd_configure.append("--ekf-double")
+
+    if opts.ekf_single:
+        cmd_configure.append("--ekf-single")
 
     pieces = [shlex.split(x) for x in opts.waf_configure_args]
     for piece in pieces:
@@ -635,6 +644,8 @@ def start_vehicle(binary, opts, stuff, spawns=None):
     cmd.extend(["--speedup", str(opts.speedup)])
     if opts.sysid is not None:
         cmd.extend(["--sysid", str(opts.sysid)])
+    if opts.slave is not None:
+        cmd.extend(["--slave", str(opts.slave)])
     if opts.sitl_instance_args:
         # this could be a lot better:
         cmd.extend(opts.sitl_instance_args.split(" "))
@@ -674,6 +685,8 @@ def start_vehicle(binary, opts, stuff, spawns=None):
         cmd.extend(["--defaults", path])
     if opts.mcast:
         cmd.extend(["--uartA mcast:"])
+    elif opts.udp:
+        cmd.extend(["--uartA udpclient:127.0.0.1:" + str(5760+cmd_opts.instance*10)])
 
     if cmd_opts.start_time is not None:
         # Parse start_time into a double precision number specifying seconds since 1900.
@@ -806,6 +819,8 @@ def start_mavproxy(opts, stuff):
         if True:
             if opts.mcast:
                 c.extend(["--master", "mcast:"])
+            elif opts.udp:
+                c.extend(["--master", ":" + str(5760 + 10 * i)])
             else:
                 c.extend(["--master", "tcp:127.0.0.1:" + str(5760 + 10 * i)])
             if stuff["sitl-port"] and not opts.no_rcin:
@@ -943,6 +958,9 @@ group_sim.add_option("-T", "--tracker",
                      action='store_true',
                      default=False,
                      help="start an antenna tracker instance")
+group_sim.add_option("", "--enable-onvif",
+                     action="store_true",
+                     help="enable onvif camera control sim using AntennaTracker")
 group_sim.add_option("-A", "--sitl-instance-args",
                      type='string',
                      default=None,
@@ -1034,6 +1052,10 @@ group_sim.add_option("", "--mcast",
                      action="store_true",
                      default=False,
                      help="Use multicasting at default 239.255.145.50:14550")
+group_sim.add_option("", "--udp",
+                     action="store_true",
+                     default=False,
+                     help="Use UDP on 127.0.0.1:5760")
 group_sim.add_option("", "--osd",
                      action='store_true',
                      dest='OSD',
@@ -1088,6 +1110,16 @@ group_sim.add_option("", "--sysid",
 group_sim.add_option("--postype-single",
                      action='store_true',
                      help="force single precision postype_t")
+group_sim.add_option("--ekf-double",
+                     action='store_true',
+                     help="use double precision in EKF")
+group_sim.add_option("--ekf-single",
+                     action='store_true',
+                     help="use single precision in EKF")
+group_sim.add_option("", "--slave",
+                     type='int',
+                     default=0,
+                     help="Set the number of JSON slave")
 parser.add_option_group(group_sim)
 
 

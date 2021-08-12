@@ -30,7 +30,7 @@ public:
     }
 
     // init
-    void                init(motor_frame_class frame_class, motor_frame_type frame_type) override;
+    virtual void        init(motor_frame_class frame_class, motor_frame_type frame_type) override;
 
 #ifdef ENABLE_SCRIPTING
     // Init to be called from scripting
@@ -61,7 +61,7 @@ public:
     bool                output_test_num(uint8_t motor, int16_t pwm);
 
     // output_to_motors - sends minimum values out to the motors
-    void                output_to_motors() override;
+    virtual void        output_to_motors() override;
 
     // get_motor_mask - returns a bitmask of which outputs are being used for motors (1 means being used)
     //  this can be used to ensure other pwm outputs (i.e. for servos) do not conflict
@@ -73,6 +73,8 @@ public:
     // return the roll factor of any motor, this is used for tilt rotors and tail sitters
     // using copter motors for forward flight
     float               get_roll_factor(uint8_t i) override { return _roll_factor[i]; }
+    // return the pitch factor of any motor
+    float               get_pitch_factor(uint8_t i) override { return _pitch_factor[i]; }
 
     const char*         get_frame_string() const override { return _frame_class_string; }
     const char*         get_type_string() const override { return _frame_type_string; }

@@ -198,6 +198,10 @@ for t in $CI_BUILD_TARGET; do
         $waf configure --board HerePro
         $waf clean
         $waf AP_Periph
+        echo "Building CubeOrange-periph peripheral fw"
+        $waf configure --board CubeOrange-periph
+        $waf clean
+        $waf AP_Periph
         echo "Building HerePro bootloader"
         $waf configure --board HerePro --bootloader
         $waf clean
@@ -247,6 +251,14 @@ for t in $CI_BUILD_TARGET; do
         continue
     fi
 
+    if [ "$t" == "stm32h7-debug" ]; then
+        echo "Building Durandal"
+        $waf configure --board Durandal --debug
+        $waf clean
+        $waf copter
+        continue
+    fi
+
     if [ "$t" == "fmuv2-plane" ]; then
         echo "Building fmuv2 plane"
         $waf configure --board fmuv2
@@ -276,7 +288,7 @@ for t in $CI_BUILD_TARGET; do
         $waf replay
         echo "Building AP_DAL standalone test"
         $waf configure --board sitl --debug --disable-scripting --no-gcs
-        $waf --target tools/AP_DAL_Standalone
+        $waf --target tool/AP_DAL_Standalone
         $waf clean
         continue
     fi

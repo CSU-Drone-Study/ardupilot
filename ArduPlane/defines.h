@@ -116,6 +116,7 @@ enum log_messages {
 #define MASK_LOG_SONAR                  (1<<14)
 // #define MASK_LOG_ARM_DISARM             (1<<15)
 #define MASK_LOG_IMU_RAW                (1UL<<19)
+#define MASK_LOG_ATTITUDE_FULLRATE      (1U<<20)
 
 // altitude control algorithms
 enum {
@@ -159,6 +160,7 @@ enum FlightOptions {
     CLIMB_BEFORE_TURN = (1 << 4),
     ACRO_YAW_DAMPER = (1 << 5),
     SURPRESS_TKOFF_SCALING = (1<<6),
+    ENABLE_DEFAULT_AIRSPEED = (1<<7),
 };
 
 enum CrowFlapOptions {

@@ -39,7 +39,9 @@
 #include <AP_GyroFFT/AP_GyroFFT.h>
 #include <AP_RCMapper/AP_RCMapper.h>
 #include <AP_VisualOdom/AP_VisualOdom.h>
+#include <AP_Parachute/AP_Parachute.h>
 #include <AP_OSD/AP_OSD.h>
+#include <AP_Button/AP_Button.h>
 
 #if HAL_MAX_CAN_PROTOCOL_DRIVERS
   #include <AP_CANManager/AP_CANManager.h>
@@ -201,6 +203,15 @@ void AP_Arming::check_failed(bool report, const char *fmt, ...) const
 
 bool AP_Arming::barometer_checks(bool report)
 {
+#ifdef HAL_BARO_ALLOW_INIT_NO_BARO
+    return true;
+#endif
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    if (AP::sitl()->baro_count == 0) {
+        // simulate no baro boards
+        return true;
+    }
+#endif
     if ((checks_to_perform & ARMING_CHECK_ALL) ||
         (checks_to_perform & ARMING_CHECK_BARO)) {
         if (!AP::baro().all_healthy()) {
@@ -843,6 +854,32 @@ bool AP_Arming::system_checks(bool report)
         return false;
     }
 
+    if (check_enabled(ARMING_CHECK_PARAMETERS)) {
+        auto *rpm = AP::rpm();
+        char buffer[MAVLINK_MSG_STATUSTEXT_FIELD_TEXT_LEN+1] {};
+        if (rpm && !rpm->arming_checks(sizeof(buffer), buffer)) {
+            check_failed(ARMING_CHECK_PARAMETERS, report, "%s", buffer);
+            return false;
+        }
+        auto *relay = AP::relay();
+        if (relay && !relay->arming_checks(sizeof(buffer), buffer)) {
+            check_failed(ARMING_CHECK_PARAMETERS, report, "%s", buffer);
+            return false;
+        }
+#if HAL_PARACHUTE_ENABLED
+        auto *chute = AP::parachute();
+        if (chute && !chute->arming_checks(sizeof(buffer), buffer)) {
+            check_failed(ARMING_CHECK_PARAMETERS, report, "%s", buffer);
+            return false;
+        }
+#endif
+        const auto &button = AP::button();
+        if (!button.arming_checks(sizeof(buffer), buffer)) {
+            check_failed(ARMING_CHECK_PARAMETERS, report, "%s", buffer);
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -932,6 +969,7 @@ bool AP_Arming::can_checks(bool report)
                 case AP_CANManager::Driver_Type_USD1:
                 case AP_CANManager::Driver_Type_MPPT_PacketDigital:
                 case AP_CANManager::Driver_Type_None:
+                case AP_CANManager::Driver_Type_Scripting:
                     break;
             }
         }

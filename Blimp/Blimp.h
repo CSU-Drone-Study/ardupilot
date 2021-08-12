@@ -44,7 +44,7 @@
 #include <Filter/Filter.h>             // Filter library
 #include <AP_Airspeed/AP_Airspeed.h>        // needed for AHRS build
 #include <AP_Vehicle/AP_Vehicle.h>         // needed for AHRS build
-#include <AP_InertialNav/AP_InertialNav.h>     // ArduPilot Mega inertial navigation library
+#include <AP_InertialNav/AP_InertialNav_NavEKF.h>     // ArduPilot Mega inertial navigation library
 #include <AP_RCMapper/AP_RCMapper.h>        // RC input mapping library
 #include <AP_BattMonitor/AP_BattMonitor.h>     // Battery monitor library
 #include <AP_Arming/AP_Arming.h>
@@ -123,7 +123,7 @@ private:
     const uint8_t num_flight_modes = 6;
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-    SITL::SITL sitl;
+    SITL::SIM sitl;
 #endif
 
     // Arming/Disarming management class
@@ -202,7 +202,6 @@ private:
     struct {
         uint8_t baro        : 1;    // true if baro is healthy
         uint8_t compass     : 1;    // true if compass is healthy
-        uint8_t primary_gps : 2;    // primary gps index
     } sensor_health;
 
     // Motor Output

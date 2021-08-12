@@ -36,6 +36,8 @@ public:
         ZIGZAG    =    24,  // ZIGZAG mode is able to fly in a zigzag manner with predefined point A and point B
         SYSTEMID  =    25,  // System ID mode produces automated system identification signals in the controllers
         AUTOROTATE =   26,  // Autonomous autorotation
+        AUTO_RTL =     27,  // Auto RTL, this is not a true mode, AUTO will report as this mode if entered to perform a DO_LAND_START Landing sequence
+        TURTLE =       28,  // Flip over after crash
     };
 
     // constructor
@@ -79,7 +81,7 @@ public:
     virtual bool requires_terrain_failsafe() const { return false; }
 
     // functions for reporting to GCS
-    virtual bool get_wp(Location &loc) { return false; };
+    virtual bool get_wp(Location &loc) const { return false; };
     virtual int32_t wp_bearing() const { return 0; }
     virtual uint32_t wp_distance() const { return 0; }
     virtual float crosstrack_error() const { return 0.0f;}
@@ -207,6 +209,8 @@ public:
                            int8_t direction,
                            bool relative_angle);
 
+        void set_yaw_angle_rate(float yaw_angle_d, float yaw_rate_ds);
+
     private:
 
         float look_ahead_yaw();
@@ -219,16 +223,20 @@ public:
         Vector3f roi;
 
         // yaw used for YAW_FIXED yaw_mode
-        int32_t _fixed_yaw;
+        float _fixed_yaw_offset_cd;
 
         // Deg/s we should turn
-        int16_t _fixed_yaw_slewrate;
+        float _fixed_yaw_slewrate_cds;
+
+        // time of the last yaw update
+        uint32_t _last_update_ms;
 
         // heading when in yaw_look_ahead_yaw
         float _look_ahead_yaw;
 
         // turn rate (in cds) when auto_yaw_mode is set to AUTO_YAW_RATE
-        float _rate_cds;
+        float _yaw_angle_cd;
+        float _yaw_rate_cds;
     };
     static AutoYaw auto_yaw;
 
@@ -346,7 +354,7 @@ class ModeAuto : public Mode {
 public:
     // inherit constructor
     using Mode::Mode;
-    Number mode_number() const override { return Number::AUTO; }
+    Number mode_number() const override { return auto_RTL? Number::AUTO_RTL : Number::AUTO; }
 
     bool init(bool ignore_checks) override;
     void exit() override;
@@ -400,6 +408,9 @@ public:
     // for GCS_MAVLink to call:
     bool do_guided(const AP_Mission::Mission_Command& cmd);
 
+    // Go straight to landing sequence via DO_LAND_START, if succeeds pretend to be Auto RTL mode
+    bool jump_to_landing_sequence_auto_RTL(ModeReason reason);
+
     AP_Mission mission{
         FUNCTOR_BIND_MEMBER(&ModeAuto::start_command, bool, const AP_Mission::Mission_Command &),
         FUNCTOR_BIND_MEMBER(&ModeAuto::verify_command, bool, const AP_Mission::Mission_Command &),
@@ -407,13 +418,13 @@ public:
 
 protected:
 
-    const char *name() const override { return "AUTO"; }
-    const char *name4() const override { return "AUTO"; }
+    const char *name() const override { return auto_RTL? "AUTO RTL" : "AUTO"; }
+    const char *name4() const override { return auto_RTL? "ARTL" : "AUTO"; }
 
     uint32_t wp_distance() const override;
     int32_t wp_bearing() const override;
     float crosstrack_error() const override { return wp_nav->crosstrack_error();}
-    bool get_wp(Location &loc) override;
+    bool get_wp(Location &loc) const override;
 
 private:
 
@@ -549,6 +560,9 @@ private:
         uint8_t cmd_count;                  // number of commands in the cmd array
         AP_Mission::Mission_Command cmd[mis_change_detect_cmd_max]; // local copy of the next few mission commands
     } mis_change_detect = {};
+
+    // True if we have entered AUTO to perform a DO_LAND_START landing sequence and we should report as AUTO RTL mode
+    bool auto_RTL;
 };
 
 #if AUTOTUNE_ENABLED == ENABLED
@@ -844,12 +858,22 @@ public:
     void set_angle(const Quaternion &q, float climb_rate_cms_or_thrust, bool use_yaw_rate, float yaw_rate_rads, bool use_thrust);
     bool set_destination(const Vector3f& destination, bool use_yaw = false, float yaw_cd = 0.0, bool use_yaw_rate = false, float yaw_rate_cds = 0.0, bool yaw_relative = false, bool terrain_alt = false);
     bool set_destination(const Location& dest_loc, bool use_yaw = false, float yaw_cd = 0.0, bool use_yaw_rate = false, float yaw_rate_cds = 0.0, bool yaw_relative = false);
-    bool get_wp(Location &loc) override;
+    bool get_wp(Location &loc) const override;
+    void set_accel(const Vector3f& acceleration, bool use_yaw = false, float yaw_cd = 0.0, bool use_yaw_rate = false, float yaw_rate_cds = 0.0, bool yaw_relative = false, bool log_request = true);
     void set_velocity(const Vector3f& velocity, bool use_yaw = false, float yaw_cd = 0.0, bool use_yaw_rate = false, float yaw_rate_cds = 0.0, bool yaw_relative = false, bool log_request = true);
+    void set_velaccel(const Vector3f& velocity, const Vector3f& acceleration, bool use_yaw = false, float yaw_cd = 0.0, bool use_yaw_rate = false, float yaw_rate_cds = 0.0, bool yaw_relative = false, bool log_request = true);
     bool set_destination_posvel(const Vector3f& destination, const Vector3f& velocity, bool use_yaw = false, float yaw_cd = 0.0, bool use_yaw_rate = false, float yaw_rate_cds = 0.0, bool yaw_relative = false);
+    bool set_destination_posvelaccel(const Vector3f& destination, const Vector3f& velocity, const Vector3f& acceleration, bool use_yaw = false, float yaw_cd = 0.0, bool use_yaw_rate = false, float yaw_rate_cds = 0.0, bool yaw_relative = false);
+
+    // get position, velocity and acceleration targets
+    const Vector3p& get_target_pos() const;
+    const Vector3f& get_target_vel() const;
+    const Vector3f& get_target_accel() const;
 
     // returns true if GUIDED_OPTIONS param suggests SET_ATTITUDE_TARGET's "thrust" field should be interpreted as thrust instead of climb rate
     bool set_attitude_target_provides_thrust() const;
+    bool stabilizing_pos_xy() const;
+    bool stabilizing_vel_xy() const;
 
     void limit_clear();
     void limit_init_time_and_pos();
@@ -863,8 +887,9 @@ public:
     enum class SubMode {
         TakeOff,
         WP,
-        Velocity,
-        PosVel,
+        PosVelAccel,
+        VelAccel,
+        Accel,
         Angle,
     };
 
@@ -872,6 +897,9 @@ public:
 
     void angle_control_start();
     void angle_control_run();
+
+    // return guided mode timeout in milliseconds.  Only used for velocity, acceleration and angle control
+    uint32_t get_timeout_ms() const;
 
 protected:
 
@@ -886,19 +914,24 @@ private:
 
     // enum for GUID_OPTIONS parameter
     enum class Options : int32_t {
-        AllowArmingFromTX = (1U << 0),
+        AllowArmingFromTX   = (1U << 0),
         // this bit is still available, pilot yaw was mapped to bit 2 for symmetry with auto
-        IgnorePilotYaw    = (1U << 2),
+        IgnorePilotYaw      = (1U << 2),
         SetAttitudeTarget_ThrustAsThrust = (1U << 3),
+        DoNotStabilizePositionXY = (1U << 4),
+        DoNotStabilizeVelocityXY = (1U << 5),
     };
 
+    void pva_control_start();
     void pos_control_start();
-    void vel_control_start();
-    void posvel_control_start();
+    void accel_control_start();
+    void velaccel_control_start();
+    void posvelaccel_control_start();
     void takeoff_run();
     void pos_control_run();
-    void vel_control_run();
-    void posvel_control_run();
+    void accel_control_run();
+    void velaccel_control_run();
+    void posvelaccel_control_run();
     void set_desired_velocity_with_accel_and_fence_limits(const Vector3f& vel_des);
     void set_yaw_state(bool use_yaw, float yaw_cd, bool use_yaw_rate, float yaw_rate_cds, bool relative_angle);
     bool use_pilot_yaw(void) const;
@@ -1003,6 +1036,7 @@ protected:
 
     uint32_t wp_distance() const override;
     int32_t wp_bearing() const override;
+    float crosstrack_error() const override { return pos_control->crosstrack_error();}
 
 #if PRECISION_LANDING == ENABLED
     bool do_precision_loiter();
@@ -1123,7 +1157,7 @@ public:
     bool requires_terrain_failsafe() const override { return true; }
 
     // for reporting to GCS
-    bool get_wp(Location &loc) override;
+    bool get_wp(Location &loc) const override;
 
     // RTL states
     enum class SubMode : uint8_t {
@@ -1247,7 +1281,7 @@ protected:
     const char *name4() const override { return "SRTL"; }
 
     // for reporting to GCS
-    bool get_wp(Location &loc) override;
+    bool get_wp(Location &loc) const override;
     uint32_t wp_distance() const override;
     int32_t wp_bearing() const override;
     float crosstrack_error() const override { return wp_nav->crosstrack_error();}
@@ -1440,14 +1474,15 @@ protected:
 private:
 
     bool throw_detected();
-    bool throw_position_good();
-    bool throw_height_good();
-    bool throw_attitude_good();
+    bool throw_position_good() const;
+    bool throw_height_good() const;
+    bool throw_attitude_good() const;
 
     // Throw stages
     enum ThrowModeStage {
         Throw_Disarmed,
         Throw_Detecting,
+        Throw_Wait_Throttle_Unlimited,
         Throw_Uprighting,
         Throw_HgtStabilise,
         Throw_PosHold
@@ -1460,6 +1495,30 @@ private:
     uint32_t free_fall_start_ms;    // system time free fall was detected
     float free_fall_start_velz;     // vertical velocity when free fall was detected
 };
+
+#if MODE_TURTLE_ENABLED == ENABLED
+class ModeTurtle : public Mode {
+
+public:
+    // inherit constructors
+    using Mode::Mode;
+    Number mode_number() const override { return Number::TURTLE; }
+
+    bool init(bool ignore_checks) override;
+    void run() override;
+    void exit() override;
+
+    bool requires_GPS() const override { return false; }
+    bool has_manual_throttle() const override { return true; }
+    bool allows_arming(AP_Arming::Method method) const override;
+    bool is_autopilot() const override { return false; }
+    void change_motor_direction(bool reverse);
+
+protected:
+    const char *name() const override { return "TURTLE"; }
+    const char *name4() const override { return "TRTL"; }
+};
+#endif
 
 // modes below rely on Guided mode so must be declared at the end (instead of in alphabetical order)
 
@@ -1512,7 +1571,7 @@ protected:
     const char *name4() const override { return "FOLL"; }
 
     // for reporting to GCS
-    bool get_wp(Location &loc) override;
+    bool get_wp(Location &loc) const override;
     uint32_t wp_distance() const override;
     int32_t wp_bearing() const override;
 

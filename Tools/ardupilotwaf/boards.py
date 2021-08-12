@@ -67,7 +67,26 @@ class Board:
         # allow GCS disable for AP_DAL example
         if cfg.options.no_gcs:
             env.CXXFLAGS += ['-DHAL_NO_GCS=1']
-            
+
+        # setup for supporting onvif cam control
+        if cfg.options.enable_onvif:
+            cfg.recurse('libraries/AP_ONVIF')
+            env.ENABLE_ONVIF = True
+            env.ROMFS_FILES += [('scripts/ONVIF_Camera_Control.lua',
+                                'libraries/AP_Scripting/applets/ONVIF_Camera_Control.lua')]
+            env.DEFINES.update(
+                ENABLE_ONVIF=1,
+                SCRIPTING_ENABLE_DEFAULT=1,
+            )
+            env.AP_LIBRARIES += [
+                'AP_ONVIF'
+            ]
+        else:
+            env.ENABLE_ONVIF = False
+            env.DEFINES.update(
+                ENABLE_ONVIF=0,
+            )
+
         d = env.get_merged_dict()
         # Always prepend so that arguments passed in the command line get
         # the priority.
@@ -137,6 +156,13 @@ class Board:
 
         cfg.msg("CXX Compiler", "%s %s"  % (cfg.env.COMPILER_CXX, ".".join(cfg.env.CC_VERSION)))
 
+        if cfg.options.assert_cc_version:
+            cfg.msg("Checking compiler", "%s %s"  % (cfg.options.assert_cc_version, ".".join(cfg.env.CC_VERSION)))
+            have_version = cfg.env.COMPILER_CXX+"-"+'.'.join(list(cfg.env.CC_VERSION))
+            want_version = cfg.options.assert_cc_version
+            if have_version != want_version:
+                cfg.fatal("cc version mismatch: %s should be %s" % (have_version, want_version))
+        
         if 'clang' in cfg.env.COMPILER_CC:
             env.CFLAGS += [
                 '-fcolor-diagnostics',
@@ -304,10 +330,6 @@ class Board:
                 'modules/uavcan/libuavcan/src/**/*.cpp'
                 ]
 
-            env.CXXFLAGS += [
-                '-Wno-error=cast-align',
-            ]
-
             env.DEFINES.update(
                 UAVCAN_CPP_VERSION = 'UAVCAN_CPP03',
                 UAVCAN_NO_ASSERTIONS = 1,
@@ -340,7 +362,24 @@ class Board:
             for f in os.listdir('libraries/AP_OSD/fonts'):
                 if fnmatch.fnmatch(f, "font*bin"):
                     env.ROMFS_FILES += [(f,'libraries/AP_OSD/fonts/'+f)]
-            
+
+        if cfg.options.ekf_double:
+            env.CXXFLAGS += ['-DHAL_WITH_EKF_DOUBLE=1']
+
+        if cfg.options.ekf_single:
+            env.CXXFLAGS += ['-DHAL_WITH_EKF_DOUBLE=0']
+
+        # add files from ROMFS_custom
+        custom_dir = 'ROMFS_custom'
+        if os.path.exists(custom_dir):
+            for root, subdirs, files in os.walk(custom_dir):
+                for f in files:
+                    if fnmatch.fnmatch(f,"*~"):
+                        # exclude emacs tmp files
+                        continue
+                    fname = root[len(custom_dir)+1:]+"/"+f
+                    env.ROMFS_FILES += [(fname,root+"/"+f)]
+
     def pre_build(self, bld):
         '''pre-build hook that gets called before dynamic sources'''
         if bld.env.ROMFS_FILES:
@@ -442,8 +481,8 @@ class sitl(Board):
             CONFIG_HAL_BOARD = 'HAL_BOARD_SITL',
             CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_NONE',
             AP_SCRIPTING_CHECKS = 1, # SITL should always do runtime scripting checks
+            HAL_PROBE_EXTERNAL_I2C_BAROS = 1,
         )
-
 
         if self.with_can:
             cfg.define('HAL_NUM_CAN_IFACES', 2)
@@ -601,7 +640,6 @@ class chibios(Board):
         # make board name available for USB IDs
         env.CHIBIOS_BOARD_NAME = 'HAL_BOARD_NAME="%s"' % self.name
         env.CFLAGS += cfg.env.CPU_FLAGS + [
-            '-Wno-cast-align',
             '-Wlogical-op',
             '-Wframe-larger-than=1300',
             '-fsingle-precision-constant',
@@ -704,6 +742,14 @@ class chibios(Board):
         else:
             cfg.msg("Enabling ChibiOS asserts", "no")
 
+
+        if cfg.options.disable_watchdog:
+            cfg.msg("Disabling Watchdog", "yes")
+            env.CFLAGS += [ '-DDISABLE_WATCHDOG' ]
+            env.CXXFLAGS += [ '-DDISABLE_WATCHDOG' ]
+        else:
+            cfg.msg("Disabling Watchdog", "no")
+
         if cfg.env.ENABLE_MALLOC_GUARD:
             cfg.msg("Enabling malloc guard", "yes")
             env.CFLAGS += [ '-DHAL_CHIBIOS_ENABLE_MALLOC_GUARD' ]
@@ -734,6 +780,7 @@ class chibios(Board):
             ('6','3','1'),
             ('9','2','1'),
             ('9','3','1'),
+            ('10','2','1'),
         ]
 
         if cfg.options.Werror or cfg.env.CC_VERSION in gcc_whitelist:

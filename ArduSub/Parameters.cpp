@@ -522,7 +522,7 @@ const AP_Param::Info Sub::var_info[] = {
 #endif
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-    GOBJECT(sitl, "SIM_", SITL::SITL),
+    GOBJECT(sitl, "SIM_", SITL::SIM),
 #endif
 
     // @Group: BARO
@@ -593,7 +593,7 @@ const AP_Param::Info Sub::var_info[] = {
     GOBJECT(rangefinder,   "RNGFND", RangeFinder),
 #endif
 
-#if AP_TERRAIN_AVAILABLE && AC_TERRAIN
+#if AP_TERRAIN_AVAILABLE
     // @Group: TERRAIN_
     // @Path: ../libraries/AP_Terrain/AP_Terrain.cpp
     GOBJECT(terrain,                "TERRAIN_", AP_Terrain),

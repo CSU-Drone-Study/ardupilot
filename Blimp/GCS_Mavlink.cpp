@@ -2,16 +2,6 @@
 
 #include "GCS_Mavlink.h"
 
-/*
- *  !!NOTE!!
- *
- *  the use of NOINLINE separate functions for each message type avoids
- *  a compiler bug in gcc that would cause it to use far more stack
- *  space than is needed. Without the NOINLINE we use the sum of the
- *  stack needed for each message type. Please be careful to follow the
- *  pattern below when adding any new messages
- */
-
 MAV_TYPE GCS_Blimp::frame_type() const
 {
     return blimp.get_frame_mav_type();
@@ -62,7 +52,7 @@ void GCS_MAVLINK_Blimp::send_position_target_global_int()
     static constexpr uint16_t POSITION_TARGET_TYPEMASK_LAST_BYTE = 0xF000;
     static constexpr uint16_t TYPE_MASK = POSITION_TARGET_TYPEMASK_VX_IGNORE | POSITION_TARGET_TYPEMASK_VY_IGNORE | POSITION_TARGET_TYPEMASK_VZ_IGNORE |
             POSITION_TARGET_TYPEMASK_AX_IGNORE | POSITION_TARGET_TYPEMASK_AY_IGNORE | POSITION_TARGET_TYPEMASK_AZ_IGNORE |
-            POSITION_TARGET_TYPEMASK_FORCE_SET | POSITION_TARGET_TYPEMASK_YAW_IGNORE | POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE | POSITION_TARGET_TYPEMASK_LAST_BYTE;
+            POSITION_TARGET_TYPEMASK_YAW_IGNORE | POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE | POSITION_TARGET_TYPEMASK_LAST_BYTE;
 
     mavlink_msg_position_target_global_int_send(
         chan,
@@ -647,3 +637,31 @@ void GCS_MAVLINK_Blimp::send_wind() const
         wind.length(),
         wind.z);
 }
+
+#if HAL_HIGH_LATENCY2_ENABLED
+uint8_t GCS_MAVLINK_Blimp::high_latency_wind_speed() const
+{
+    Vector3f airspeed_vec_bf;
+    if (!AP::ahrs().airspeed_vector_true(airspeed_vec_bf)) {
+        // if we don't have an airspeed estimate then we don't have a
+        // valid wind estimate on blimps
+        return 0;
+    }
+    // return units are m/s*5
+    const Vector3f wind = AP::ahrs().wind_estimate();
+    return wind.length() * 5;
+}
+
+uint8_t GCS_MAVLINK_Blimp::high_latency_wind_direction() const
+{
+    Vector3f airspeed_vec_bf;
+    if (!AP::ahrs().airspeed_vector_true(airspeed_vec_bf)) {
+        // if we don't have an airspeed estimate then we don't have a
+        // valid wind estimate on blimps
+        return 0;
+    }
+    const Vector3f wind = AP::ahrs().wind_estimate();
+    // need to convert -180->180 to 0->360/2
+    return wrap_360(degrees(atan2f(-wind.y, -wind.x))) / 2;
+}
+#endif // HAL_HIGH_LATENCY2_ENABLED

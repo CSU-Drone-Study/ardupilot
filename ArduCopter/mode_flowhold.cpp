@@ -76,7 +76,7 @@ const AP_Param::GroupInfo ModeFlowHold::var_info[] = {
 
 ModeFlowHold::ModeFlowHold(void) : Mode()
 {
-    AP_Param::setup_object_defaults(this, var_info);            
+    AP_Param::setup_object_defaults(this, var_info);
 }
 
 #define CONTROL_FLOWHOLD_EARTH_FRAME 0
@@ -90,6 +90,7 @@ bool ModeFlowHold::init(bool ignore_checks)
 
     // set vertical speed and acceleration limits
     pos_control->set_max_speed_accel_z(-get_pilot_speed_dn(), g.pilot_speed_up, g.pilot_accel_z);
+    pos_control->set_correction_speed_accel_z(-get_pilot_speed_dn(), g.pilot_speed_up, g.pilot_accel_z);
 
     // initialise the vertical position controller
     if (!copter.pos_control->is_active_z()) {
