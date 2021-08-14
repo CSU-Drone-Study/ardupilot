@@ -27,6 +27,7 @@ void setup() {
 }
 
 void loop() {
+
     printAllAvailableBytes();
     console -> print("bruh");
     hal.scheduler -> delay(10);
@@ -34,8 +35,7 @@ void loop() {
 
 //just prints whatever is in the ring buffer
 static void printAllAvailableBytes() {
-    uint32_t available = buffer.available();
-    buffer.read(tempData, available);
+    uint32_t available = imu -> read(tempData, bufferSize);
     for(int i = 0; i < available; i++) {
         console -> printf("0x%x ", tempData[i]);
     }
