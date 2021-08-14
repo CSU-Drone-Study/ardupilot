@@ -57,10 +57,11 @@ void loop() {
     //read 1000 packets, then debug the stats
     if(numGoodPackets < 1000) {
         //collect all available bytes
-        readIMU();
+        //readIMU();
 
         //parse any available bytes
-        buildPacket();
+        //buildPacket();
+        printAllAvailableBytes();
     }
     else if(!debugged) {
         console->printf("\nread 1000 packets in %lu milliseconds\n", AP_HAL::millis() - firstReadTime);
@@ -76,6 +77,7 @@ static void readIMU() {
     buffer.write(tempData, amountRead);
 }
 
+/*
 //use all available bytes to continue building packets where we left off last loop
 static void buildPacket() {
     while(buffer.available() >= searchBytes) {
@@ -151,6 +153,7 @@ static bool validPacket() {
 
     return (currPacket.checksum[0] == checksumByte1 && currPacket.checksum[1] == checksumByte2);
 }
+*/
 
 static void printCurrPacket() {
     for(int i = 0; i < 4; i++) {
@@ -164,6 +167,7 @@ static void printCurrPacket() {
     }
     console -> printf("\n");
 }
+
 
 //just prints whatever is in the ring buffer
 /*static void printAllAvailableBytes() {
