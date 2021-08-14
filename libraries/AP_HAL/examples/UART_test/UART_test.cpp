@@ -8,13 +8,17 @@
 void setup();
 void loop();
 static void setup_uart(AP_HAL::UARTDriver *uart);
-static void printCurrPacket();
 static void printAllAvailableBytes();
 
 //HAL variables
 const AP_HAL::HAL& hal = AP_HAL::get_HAL();
 static AP_HAL::UARTDriver *imu = hal.serial(4);
 static AP_HAL::UARTDriver *console = hal.serial(0);
+
+//shared ring buffer
+static const uint32_t bufferSize = 1024;
+static ByteBuffer buffer{bufferSize};
+static uint8_t tempData[bufferSize];    //later, the producer and consumer should each have their own temp buffers
 
 void setup() {
     setup_uart(imu);
@@ -23,10 +27,7 @@ void setup() {
 }
 
 void loop() {
-    //read 1000 packets, then debug the stats
-    if(numGoodPackets < 1000) {
-        printAllAvailableBytes();
-    }
+    printAllAvailableBytes();
 }
 
 //just prints whatever is in the ring buffer
