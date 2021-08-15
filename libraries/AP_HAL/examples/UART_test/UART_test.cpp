@@ -28,6 +28,8 @@ void setup() {
 
 void loop() {
     printAllAvailableBytes();
+    console -> print("bruh");
+    hal.scheduler -> delay(10);
 }
 
 //just prints whatever is in the ring buffer
