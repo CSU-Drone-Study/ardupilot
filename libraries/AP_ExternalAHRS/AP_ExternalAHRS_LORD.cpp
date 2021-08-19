@@ -48,14 +48,15 @@ AP_ExternalAHRS_LORD::AP_ExternalAHRS_LORD(AP_ExternalAHRS *_frontend,
     }
 
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "LORD ExternalAHRS initialised");
-
+    
+    message_in.state = ParseState::WaitingFor_SyncOne;
 }
 
 void AP_ExternalAHRS_LORD::update_thread() {
     if (!portOpened) {
         portOpened = true;
         uart -> begin(baudrate);
-        send_config();
+        // send_config();
     }
 
     while (true) {
@@ -112,6 +113,8 @@ void AP_ExternalAHRS_LORD::build_packet() {
 
                     if (valid_packet(message_in.packet)) {
                         handle_packet(message_in.packet);
+                    } else {
+                        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Received bad packet");
                     }
                 }
                 break;
