@@ -88,6 +88,8 @@ void AP_ExternalAHRS_LORD::build_packet() {
                 if (b == SYNC_TWO) {
                     message_in.packet.header[1] = b;
                     message_in.state = ParseState::WaitingFor_Descriptor;
+                } else {
+                    message_in.state = ParseState::WaitingFor_SyncOne;
                 }
                 break;
             case ParseState::WaitingFor_Descriptor:
