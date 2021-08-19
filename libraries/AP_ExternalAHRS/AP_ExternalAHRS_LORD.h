@@ -72,6 +72,9 @@ private:
     const uint8_t SYNC_ONE = 0x75;
     const uint8_t SYNC_TWO = 0x65;
 
+    uint32_t last_ins_pkt = 0;
+    uint32_t last_gps_pkt = 0;
+
     struct LORD_Packet {
         uint8_t header[4];
         uint8_t payload[256];

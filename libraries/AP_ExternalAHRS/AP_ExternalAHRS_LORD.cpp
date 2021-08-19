@@ -194,6 +194,8 @@ void AP_ExternalAHRS_LORD::handle_imu(LORD_Packet& packet) {
 
 // Posts data from an imu packet to `state` and `handle_external` methods
 void AP_ExternalAHRS_LORD::post_imu() {
+    last_ins_pkt = AP_HAL::millis();
+
     {
         WITH_SEMAPHORE(state.sem);
         state.accel = imu_data.accel;
@@ -291,6 +293,8 @@ void AP_ExternalAHRS_LORD::handle_gnss(LORD_Packet &packet) {
 
 // Posts data from a gnss packet to `state` and `handle_external` methods
 void AP_ExternalAHRS_LORD::post_gnss() {
+    last_gps_pkt = AP_HAL::millis();
+
     AP_ExternalAHRS::gps_data_message_t gps;
     
     gps.gps_week = gnss_data.week;
@@ -332,16 +336,25 @@ int8_t AP_ExternalAHRS_LORD::get_port(void) const {
 };
 
 bool AP_ExternalAHRS_LORD::healthy(void) const {
-    return true;
+    uint32_t now = AP_HAL::millis();
+    return (now - last_ins_pkt < 40 && now - last_gps_pkt < 500);
 }
 
 bool AP_ExternalAHRS_LORD::initialised(void) const {
-    return true;
+    return last_ins_pkt != 0 && last_gps_pkt != 0;
 }
 
 bool AP_ExternalAHRS_LORD::pre_arm_check(char *failure_msg, uint8_t failure_msg_len) const {
-    return true;
-}
+    if (!healthy()) {
+        hal.util->snprintf(failure_msg, failure_msg_len, "LORD unhealthy");
+        return false;
+    }
+    if (gnss_data.fix_type < 3) {
+        hal.util->snprintf(failure_msg, failure_msg_len, "LORD no GPS lock");
+        return false;
+    }
+
+    return true;}
 
 void AP_ExternalAHRS_LORD::get_filter_status(nav_filter_status &status) const {
     return;
