@@ -74,6 +74,7 @@ private:
 
     uint32_t last_ins_pkt = 0;
     uint32_t last_gps_pkt = 0;
+    uint32_t last_filter_pkt = 0;
 
     struct LORD_Packet {
         uint8_t header[4];
@@ -113,14 +114,36 @@ private:
         float speed_accuracy;
     } gnss_data;
 
+    struct {
+        uint16_t state;
+        uint16_t mode;
+        uint16_t flags;
+    } filter_status;
+
+    struct {
+        uint16_t week;
+        uint32_t tow_ms;
+        float horizontal_position_accuracy;
+        float vertical_position_accuracy;
+        int32_t lon;
+        int32_t lat;
+        int32_t msl_altitude;
+        float ned_velocity_north;
+        float ned_velocity_east;
+        float ned_velocity_down;
+        float speed_accuracy;
+    } filter_data;
+
     void send_config();
     void build_packet();
     bool valid_packet(LORD_Packet &packet);
     void handle_packet(LORD_Packet &packet);
     void handle_imu(LORD_Packet &packet);
     void handle_gnss(LORD_Packet &packet);
+    void handle_filter(LORD_Packet &packet);
     void post_imu();
     void post_gnss();
+    void post_filter();
 
     Vector3f populate_vector(uint8_t* data, uint8_t offset);
     Quaternion populate_quaternion(uint8_t* data, uint8_t offset);

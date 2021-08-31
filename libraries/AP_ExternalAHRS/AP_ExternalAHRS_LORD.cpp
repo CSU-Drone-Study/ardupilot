@@ -52,7 +52,7 @@ AP_ExternalAHRS_LORD::AP_ExternalAHRS_LORD(AP_ExternalAHRS *_frontend,
     message_in.state = ParseState::WaitingFor_SyncOne;
 }
 
-void AP_ExternalAHRS_LORD::update_thread() {
+void AP_ExternalAHRS_LORD::update_thread(void) {
     if (!portOpened) {
         portOpened = true;
         uart -> begin(baudrate);
@@ -68,6 +68,7 @@ void AP_ExternalAHRS_LORD::update_thread() {
 const uint8_t config_packet[] = { 0x75, 0x65, 0xC, 0x47, 0x13, 0x8, 0x1, 0x5, 0x17, 0x0, 0xA, 0x6, 0x0, 0xA, 0x4, 0x0, 0xA, 0x5, 0x0, 0xA, 0xA, 0x0, 0xA, 0x13, 0x9, 0x1, 0x5, 0x9, 0x0, 0x1, 0xB, 0x0, 0x1, 0x3, 0x0, 0x1, 0x7, 0x0, 0x1, 0x5, 0x0, 0x1, 0x3, 0x8, 0x3, 0x3, 0x9, 0x3, 0x5, 0x11, 0x1, 0x1, 0x1, 0x5, 0x11, 0x1, 0x2, 0x1, 0x5, 0x11, 0x1, 0x3, 0x0, 0x4, 0x11, 0x3, 0x1, 0x4, 0x11, 0x3, 0x2, 0x4, 0x11, 0x3, 0x3, 0xB2, 0x74, };
 
 void AP_ExternalAHRS_LORD::send_config() {
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Sent LORD Config");
     uart->write((const char*) config_packet);
 }
 
@@ -149,9 +150,12 @@ void AP_ExternalAHRS_LORD::handle_packet(LORD_Packet& packet) {
             break;
         case DescriptorSet::GNSSData:
             handle_gnss(packet);
-            post_gnss();
+            // post_gnss();
             break;
         case DescriptorSet::EstimationData:
+            handle_filter(packet);
+            post_filter();
+            break;
         case DescriptorSet::BaseCommand:
         case DescriptorSet::DMCommand:
         case DescriptorSet::SystemCommand:
@@ -329,6 +333,85 @@ void AP_ExternalAHRS_LORD::post_gnss() {
     AP::gps().handle_external(gps);
 }
 
+void AP_ExternalAHRS_LORD::handle_filter(LORD_Packet &packet) {
+        for (uint8_t i = 0; i < packet.header[3]; i += packet.payload[i]) {
+            switch (packet.payload[i + 1]) {
+                // GPS Timestamp
+                case 0x11: {
+                    filter_data.tow_ms = extract_double(packet.payload, i+2) * 1000; // Convert seconds to ms
+                    filter_data.week = be16toh_ptr(&packet.payload[i+10]);
+                    break;
+                }
+                // LLH Position
+                case 0x01: {
+                    filter_data.lat = extract_double(packet.payload, i+2) * 1.0e7; // Decimal degrees to degrees
+                    filter_data.lon = extract_double(packet.payload, i+10) * 1.0e7;
+                    filter_data.msl_altitude = extract_double(packet.payload, i+26) * 1.0e2; // Meters to cm
+                    filter_data.horizontal_position_accuracy = extract_float(packet.payload, i + 34);
+                    filter_data.vertical_position_accuracy = extract_float(packet.payload, i+38);
+                    break;
+                    
+                }
+                // NED Velocity
+                case 0x02: {
+                    filter_data.ned_velocity_north = extract_float(packet.payload, i+2);
+                    filter_data.ned_velocity_east = extract_float(packet.payload, i+6);
+                    filter_data.ned_velocity_down = extract_float(packet.payload, i+10);
+                    filter_data.speed_accuracy = extract_float(packet.payload, i+26);
+                    break;
+                }
+                // Quaternion
+                case 0x03: {
+                    break;
+                }
+                // Filter Status
+                case 0x10: {
+                    filter_status.state = be16toh_ptr(&packet.payload[i+2]);
+                    filter_status.mode = be16toh_ptr(&packet.payload[i+4]);
+                    filter_status.flags = be16toh_ptr(&packet.payload[i+6]);
+                    break;
+                }
+            }
+        }
+}
+
+void AP_ExternalAHRS_LORD::post_filter() {
+    last_filter_pkt = AP_HAL::millis();
+
+    AP_ExternalAHRS::gps_data_message_t gps;
+    
+    gps.gps_week = filter_data.week;
+    gps.ms_tow = filter_data.tow_ms;
+    gps.fix_type = gnss_data.fix_type;
+    gps.satellites_in_view = gnss_data.satellites;
+
+    gps.horizontal_pos_accuracy = gnss_data.horizontal_position_accuracy;
+    gps.vertical_pos_accuracy = gnss_data.vertical_position_accuracy;
+
+    gps.latitude = filter_data.lat;
+    gps.longitude = filter_data.lon;
+    gps.msl_altitude = gnss_data.msl_altitude;
+
+    gps.ned_vel_north = filter_data.ned_velocity_north;
+    gps.ned_vel_east = filter_data.ned_velocity_east;
+    gps.ned_vel_down = filter_data.ned_velocity_down;
+    gps.horizontal_vel_accuracy = gnss_data.speed_accuracy;
+
+    gps.hdop = gnss_data.hdop;
+    gps.vdop = gnss_data.vdop;
+
+    if (gps.fix_type >= 3 && !state.have_origin) {
+        WITH_SEMAPHORE(state.sem);
+        state.origin = Location{int32_t(gnss_data.lat),
+                                int32_t(gnss_data.lon),
+                                int32_t(gnss_data.msl_altitude),
+                                Location::AltFrame::ABSOLUTE};
+        state.have_origin = true;
+    }
+
+    AP::gps().handle_external(gps);
+}
+
 int8_t AP_ExternalAHRS_LORD::get_port(void) const {
     if (!uart)
         return -1;
@@ -337,7 +420,7 @@ int8_t AP_ExternalAHRS_LORD::get_port(void) const {
 
 bool AP_ExternalAHRS_LORD::healthy(void) const {
     uint32_t now = AP_HAL::millis();
-    return (now - last_ins_pkt < 40 && now - last_gps_pkt < 500);
+    return (now - last_ins_pkt < 40 && now - last_gps_pkt < 500 && now - last_filter_pkt < 500);
 }
 
 bool AP_ExternalAHRS_LORD::initialised(void) const {
@@ -354,7 +437,8 @@ bool AP_ExternalAHRS_LORD::pre_arm_check(char *failure_msg, uint8_t failure_msg_
         return false;
     }
 
-    return true;}
+    return true;
+}
 
 void AP_ExternalAHRS_LORD::get_filter_status(nav_filter_status &status) const {
     return;
@@ -366,31 +450,21 @@ void AP_ExternalAHRS_LORD::send_status_report(mavlink_channel_t chan) const {
 
 Vector3f AP_ExternalAHRS_LORD::populate_vector(uint8_t *data, uint8_t offset) {
     Vector3f vector;
-    uint32_t tmp[3];
 
-    for (uint8_t i = 0; i < 3; i++) {
-        tmp[i] = be32toh_ptr(&data[offset+i*4]);
-    }
-
-    vector.x = *reinterpret_cast<float*>(&tmp[0]);
-    vector.y = *reinterpret_cast<float*>(&tmp[1]);
-    vector.z = *reinterpret_cast<float*>(&tmp[2]);
+    vector.x = extract_float(data, offset);
+    vector.y = extract_float(data, offset + 4);
+    vector.z = extract_float(data, offset + 8);
 
     return vector;
 }
 
 Quaternion AP_ExternalAHRS_LORD::populate_quaternion(uint8_t *data, uint8_t offset) {
     Quaternion quat;
-    uint32_t tmp[4];
 
-    for (uint8_t i = 0; i < 4; i++) {
-        tmp[i] = be32toh_ptr(&data[offset+i*4]);
-    }
-
-    quat.q1 = *reinterpret_cast<float*>(&tmp[0]);
-    quat.q2 = *reinterpret_cast<float*>(&tmp[1]);
-    quat.q3 = *reinterpret_cast<float*>(&tmp[2]);
-    quat.q4 = *reinterpret_cast<float*>(&tmp[3]);
+    quat.q1 = extract_float(data, offset);
+    quat.q2 = extract_float(data, offset + 4);
+    quat.q3 = extract_float(data, offset + 8);
+    quat.q4 = extract_float(data, offset + 12);
 
     return quat;
 }
