@@ -357,11 +357,74 @@ bool AP_ExternalAHRS_LORD::pre_arm_check(char *failure_msg, uint8_t failure_msg_
     return true;}
 
 void AP_ExternalAHRS_LORD::get_filter_status(nav_filter_status &status) const {
-    return;
+    memset(&status, 0, sizeof(status));
+    if (last_ins_pkt!=0 && last_gps_pkt!=0) {
+        status.flags.initalized = 1;
+    }
+    if (healthy() && last_ins_packet!=0) {
+        status.flags.attitude = 1;
+        status.flags.vert_vel = 1;
+        status.flags.vert_pos = 1;
+
+        if (fix_type >= 3) {
+            status.flags.horiz_vel = 1;
+            status.flags.horiz_pos_rel = 1;
+            status.flags.horiz_pos_abs = 1;
+            status.flags.pred_horiz_pos_rel = 1;
+            status.flags.pred_horiz_pos_abs = 1;
+            status.flags.using_gps = 1;
+        }
+    }
 }
 
 void AP_ExternalAHRS_LORD::send_status_report(mavlink_channel_t chan) const {
-    return;
+    // prepare flags
+    uint16_t flags = 0;
+    nav_filter_status filterStatus;
+    get_filter_status(filterStatus);
+    if (filterStatus.flags.attitude) {
+        flags |= EKF_ATTITUDE;
+    }
+    if (filterStatus.flags.horiz_vel) {
+        flags |= EKF_VELOCITY_HORIZ;
+    }
+    if (filterStatus.flags.vert_vel) {
+        flags |= EKF_VELOCITY_VERT;
+    }
+    if (filterStatus.flags.horiz_pos_rel) {
+        flags |= EKF_POS_HORIZ_REL;
+    }
+    if (filterStatus.flags.horiz_pos_abs) {
+        flags |= EKF_POS_HORIZ_ABS;
+    }
+    if (filterStatus.flags.vert_pos) {
+        flags |= EKF_POS_VERT_ABS;
+    }
+    if (filterStatus.flags.terrain_alt) {
+        flags |= EKF_POS_VERT_AGL;
+    }
+    if (filterStatus.flags.const_pos_mode) {
+        flags |= EKF_CONST_POS_MODE;
+    }
+    if (filterStatus.flags.pred_horiz_pos_rel) {
+        flags |= EKF_PRED_POS_HORIZ_REL;
+    }
+    if (filterStatus.flags.pred_horiz_pos_abs) {
+        flags |= EKF_PRED_POS_HORIZ_ABS;
+    }
+    if (!filterStatus.flags.initalized) {
+        flags |= EKF_UNINITIALIZED;
+    }
+
+    // send message
+    const float vel_gate = 5; // represents hz value data is posted at
+    const float pos_gate = 5; // represents hz value data is posted at
+    const float hgt_gate = 5; // represents hz value data is posted at
+    const float mag_var = 0; //we may need to change this to be like the other gates, set to 0 because mag is ignored by the ins filter in vectornav
+    mavlink_msg_ekf_status_report_send(chan, flags,
+                                       gnss_data.speed_accuracy/vel_gate, gnss_data.horizontal_position_accuracy/pos_gate, gnss_data.vertical_position_accuracy/hgt_gate,
+                                       mag_var, 0, 0);
+
 }
 
 Vector3f AP_ExternalAHRS_LORD::populate_vector(uint8_t *data, uint8_t offset) {
