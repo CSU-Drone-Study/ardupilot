@@ -429,7 +429,7 @@ bool AP_ExternalAHRS_LORD::initialised(void) const {
 
 bool AP_ExternalAHRS_LORD::pre_arm_check(char *failure_msg, uint8_t failure_msg_len) const {
     if (!healthy()) {
-        hal.util->snprintf(failure_msg, failure_msg_len, "LORD unhealthy. Last INS: %lu GPS: %lu EST: %lu", last_ins_pkt, last_gps_pkt, last_filter_pkt);
+        //hal.util->snprintf(failure_msg, failure_msg_len, "LORD unhealthy. Last INS: %lu GPS: %lu EST: %lu", last_ins_pkt, last_gps_pkt, last_filter_pkt);
         return false;
     }
     if (gnss_data.fix_type < 3) {
