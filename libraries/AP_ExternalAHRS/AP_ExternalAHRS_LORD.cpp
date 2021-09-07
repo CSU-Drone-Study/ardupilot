@@ -165,6 +165,8 @@ void AP_ExternalAHRS_LORD::handle_packet(LORD_Packet& packet) {
 
 // Collects data from an imu packet into `imu_data`
 void AP_ExternalAHRS_LORD::handle_imu(LORD_Packet& packet) {
+    last_ins_pkt = AP_HAL::millis();
+
     for (uint8_t i = 0; i < packet.header[3]; i += packet.payload[i]) {
         switch (packet.payload[i + 1]) {
             // Scaled Ambient Pressure
@@ -198,8 +200,6 @@ void AP_ExternalAHRS_LORD::handle_imu(LORD_Packet& packet) {
 
 // Posts data from an imu packet to `state` and `handle_external` methods
 void AP_ExternalAHRS_LORD::post_imu() {
-    last_ins_pkt = AP_HAL::millis();
-
     {
         WITH_SEMAPHORE(state.sem);
         state.accel = imu_data.accel;
@@ -234,6 +234,8 @@ void AP_ExternalAHRS_LORD::post_imu() {
 
 // Collects data from an gnss packet into `gnss_data`
 void AP_ExternalAHRS_LORD::handle_gnss(LORD_Packet &packet) {
+    last_gps_pkt = AP_HAL::millis();
+
     for (uint8_t i = 0; i < packet.header[3]; i += packet.payload[i]) {
         switch (packet.payload[i + 1]) {
             // GPS Time
@@ -297,8 +299,6 @@ void AP_ExternalAHRS_LORD::handle_gnss(LORD_Packet &packet) {
 
 // Posts data from a gnss packet to `state` and `handle_external` methods
 void AP_ExternalAHRS_LORD::post_gnss() {
-    last_gps_pkt = AP_HAL::millis();
-
     AP_ExternalAHRS::gps_data_message_t gps;
     
     gps.gps_week = gnss_data.week;
@@ -334,6 +334,8 @@ void AP_ExternalAHRS_LORD::post_gnss() {
 }
 
 void AP_ExternalAHRS_LORD::handle_filter(LORD_Packet &packet) {
+        last_filter_pkt = AP_HAL::millis();
+
         for (uint8_t i = 0; i < packet.header[3]; i += packet.payload[i]) {
             switch (packet.payload[i + 1]) {
                 // GPS Timestamp
@@ -376,8 +378,6 @@ void AP_ExternalAHRS_LORD::handle_filter(LORD_Packet &packet) {
 }
 
 void AP_ExternalAHRS_LORD::post_filter() {
-    last_filter_pkt = AP_HAL::millis();
-
     AP_ExternalAHRS::gps_data_message_t gps;
     
     gps.gps_week = filter_data.week;
@@ -424,12 +424,12 @@ bool AP_ExternalAHRS_LORD::healthy(void) const {
 }
 
 bool AP_ExternalAHRS_LORD::initialised(void) const {
-    return last_ins_pkt != 0 && last_gps_pkt != 0;
+    return last_ins_pkt != 0 && last_gps_pkt != 0 && last_filter_pkt != 0;
 }
 
 bool AP_ExternalAHRS_LORD::pre_arm_check(char *failure_msg, uint8_t failure_msg_len) const {
     if (!healthy()) {
-        hal.util->snprintf(failure_msg, failure_msg_len, "LORD unhealthy");
+        hal.util->snprintf(failure_msg, failure_msg_len, "LORD unhealthy. Last INS: %lu GPS: %lu EST: %lu", last_ins_pkt, last_gps_pkt, last_filter_pkt);
         return false;
     }
     if (gnss_data.fix_type < 3) {
