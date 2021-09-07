@@ -358,10 +358,10 @@ bool AP_ExternalAHRS_LORD::pre_arm_check(char *failure_msg, uint8_t failure_msg_
 
 void AP_ExternalAHRS_LORD::get_filter_status(nav_filter_status &status) const {
     memset(&status, 0, sizeof(status));
-    if (last_ins_pkt!=0 && last_gps_pkt !=0 ) {
+    if (last_ins_pkt!=0 && last_gps_pkt != 0) {
         status.flags.initalized = 1;
     }
-    if (healthy() && last_ins_packet !=0 ) {
+    if (healthy() && last_ins_packet != 0) {
         status.flags.attitude = 1;
         status.flags.vert_vel = 1;
         status.flags.vert_pos = 1;
