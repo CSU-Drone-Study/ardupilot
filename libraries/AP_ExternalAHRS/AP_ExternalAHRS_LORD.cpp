@@ -47,6 +47,7 @@ AP_ExternalAHRS_LORD::AP_ExternalAHRS_LORD(AP_ExternalAHRS *_frontend,
         AP_HAL::panic("Failed to start ExternalAHRS update thread");
     }
 
+    hal.scheduler -> delay(5000);
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "LORD ExternalAHRS initialised");
 }
 
@@ -61,13 +62,6 @@ void AP_ExternalAHRS_LORD::update_thread(void) {
         build_packet();
         hal.scheduler -> delay(1);
     }
-}
-
-const uint8_t config_packet[] = { 0x75, 0x65, 0xC, 0x47, 0x13, 0x8, 0x1, 0x5, 0x17, 0x0, 0xA, 0x6, 0x0, 0xA, 0x4, 0x0, 0xA, 0x5, 0x0, 0xA, 0xA, 0x0, 0xA, 0x13, 0x9, 0x1, 0x5, 0x9, 0x0, 0x1, 0xB, 0x0, 0x1, 0x3, 0x0, 0x1, 0x7, 0x0, 0x1, 0x5, 0x0, 0x1, 0x3, 0x8, 0x3, 0x3, 0x9, 0x3, 0x5, 0x11, 0x1, 0x1, 0x1, 0x5, 0x11, 0x1, 0x2, 0x1, 0x5, 0x11, 0x1, 0x3, 0x0, 0x4, 0x11, 0x3, 0x1, 0x4, 0x11, 0x3, 0x2, 0x4, 0x11, 0x3, 0x3, 0xB2, 0x74, };
-
-void AP_ExternalAHRS_LORD::send_config() {
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Sent LORD Config");
-    uart->write((const char*) config_packet);
 }
 
 // Builds packets by looking at each individual byte, once a full packet has been read in it checks the checksum then handles the packet.
@@ -355,7 +349,6 @@ void AP_ExternalAHRS_LORD::handle_filter(LORD_Packet &packet) {
                     filter_data.horizontal_position_accuracy = extract_float(packet.payload, i + 34);
                     filter_data.vertical_position_accuracy = extract_float(packet.payload, i+38);
                     break;
-                    
                 }
                 // NED Velocity
                 case 0x02: {
