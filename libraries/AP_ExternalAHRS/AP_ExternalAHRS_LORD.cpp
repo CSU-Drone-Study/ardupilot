@@ -34,7 +34,7 @@ AP_ExternalAHRS_LORD::AP_ExternalAHRS_LORD(AP_ExternalAHRS *_frontend,
     AP_ExternalAHRS::state_t &_state): AP_ExternalAHRS_backend(_frontend, _state) {
     auto &sm = AP::serialmanager();
     uart = sm.find_serial(AP_SerialManager::SerialProtocol_AHRS, 0);
-    
+
     baudrate = sm.find_baudrate(AP_SerialManager::SerialProtocol_AHRS, 0);
     port_num = sm.find_portnum(AP_SerialManager::SerialProtocol_AHRS, 0);
 
@@ -165,15 +165,15 @@ void AP_ExternalAHRS_LORD::handle_imu(LORD_Packet& packet) {
     last_ins_pkt = AP_HAL::millis();
 
     for (uint8_t i = 0; i < packet.header[3]; i += packet.payload[i]) {
-        switch (packet.payload[i + 1]) {
+        switch (packet.payload[i+1]) {
             // Scaled Ambient Pressure
             case 0x17: {
-                imu_data.pressure = extract_float(packet.payload, i + 2) * 100; // Convert millibar to pascals
+                imu_data.pressure = extract_float(packet.payload, i+2) * 100; // Convert millibar to pascals
                 break;
             }
             // Scaled Magnetometer Vector
             case 0x06: {
-                imu_data.mag = populate_vector(packet.payload, i + 2) * 1000; // Convert gauss to radians
+                imu_data.mag = populate_vector(packet.payload, i+2) * 1000; // Convert gauss to radians
                 break;
             }
             // Scaled Accelerometer Vector
@@ -183,12 +183,12 @@ void AP_ExternalAHRS_LORD::handle_imu(LORD_Packet& packet) {
             }
             // Scaled Gyro Vector
             case 0x05: {
-                imu_data.gyro = populate_vector(packet.payload, i + 2);
-                break; 
+                imu_data.gyro = populate_vector(packet.payload, i+2);
+                break;
             }
             // CF Quaternion
             case 0x0A: {
-                imu_data.quat = populate_quaternion(packet.payload, i + 2);
+                imu_data.quat = populate_quaternion(packet.payload, i+2);
                 break;
             }
         }
@@ -196,7 +196,7 @@ void AP_ExternalAHRS_LORD::handle_imu(LORD_Packet& packet) {
 }
 
 // Posts data from an imu packet to `state` and `handle_external` methods
-void AP_ExternalAHRS_LORD::post_imu() {
+void AP_ExternalAHRS_LORD::post_imu() const {
     {
         WITH_SEMAPHORE(state.sem);
         state.accel = imu_data.accel;
@@ -234,7 +234,7 @@ void AP_ExternalAHRS_LORD::handle_gnss(LORD_Packet &packet) {
     last_gps_pkt = AP_HAL::millis();
 
     for (uint8_t i = 0; i < packet.header[3]; i += packet.payload[i]) {
-        switch (packet.payload[i + 1]) {
+        switch (packet.payload[i+1]) {
             // GPS Time
             case 0x09: {
                 gnss_data.tow_ms = extract_double(packet.payload, i+2) * 1000; // Convert seconds to ms
@@ -252,7 +252,7 @@ void AP_ExternalAHRS_LORD::handle_gnss(LORD_Packet &packet) {
                         gnss_data.fix_type = GPS_FIX_TYPE_2D_FIX;
                         break;
                     }
-                    case (0x02): 
+                    case (0x02):
                     case (0x03): {
                         gnss_data.fix_type = GPS_FIX_TYPE_NO_FIX;
                         break;
@@ -272,7 +272,7 @@ void AP_ExternalAHRS_LORD::handle_gnss(LORD_Packet &packet) {
                 gnss_data.lat = extract_double(packet.payload, i+2) * 1.0e7; // Decimal degrees to degrees
                 gnss_data.lon = extract_double(packet.payload, i+10) * 1.0e7;
                 gnss_data.msl_altitude = extract_double(packet.payload, i+26) * 1.0e2; // Meters to cm
-                gnss_data.horizontal_position_accuracy = extract_float(packet.payload, i + 34);
+                gnss_data.horizontal_position_accuracy = extract_float(packet.payload, i+34);
                 gnss_data.vertical_position_accuracy = extract_float(packet.payload, i+38);
                 break;
             }
@@ -295,9 +295,9 @@ void AP_ExternalAHRS_LORD::handle_gnss(LORD_Packet &packet) {
 }
 
 // Posts data from a gnss packet to `state` and `handle_external` methods
-void AP_ExternalAHRS_LORD::post_gnss() {
+void AP_ExternalAHRS_LORD::post_gnss() const {
     AP_ExternalAHRS::gps_data_message_t gps;
-    
+
     gps.gps_week = gnss_data.week;
     gps.ms_tow = gnss_data.tow_ms;
     gps.fix_type = gnss_data.fix_type;
@@ -334,7 +334,7 @@ void AP_ExternalAHRS_LORD::handle_filter(LORD_Packet &packet) {
         last_filter_pkt = AP_HAL::millis();
 
         for (uint8_t i = 0; i < packet.header[3]; i += packet.payload[i]) {
-            switch (packet.payload[i + 1]) {
+            switch (packet.payload[i+1]) {
                 // GPS Timestamp
                 case 0x11: {
                     filter_data.tow_ms = extract_double(packet.payload, i+2) * 1000; // Convert seconds to ms
@@ -346,7 +346,7 @@ void AP_ExternalAHRS_LORD::handle_filter(LORD_Packet &packet) {
                     filter_data.lat = extract_double(packet.payload, i+2) * 1.0e7; // Decimal degrees to degrees
                     filter_data.lon = extract_double(packet.payload, i+10) * 1.0e7;
                     filter_data.msl_altitude = extract_double(packet.payload, i+26) * 1.0e2; // Meters to cm
-                    filter_data.horizontal_position_accuracy = extract_float(packet.payload, i + 34);
+                    filter_data.horizontal_position_accuracy = extract_float(packet.payload, i+34);
                     filter_data.vertical_position_accuracy = extract_float(packet.payload, i+38);
                     break;
                 }
@@ -356,10 +356,6 @@ void AP_ExternalAHRS_LORD::handle_filter(LORD_Packet &packet) {
                     filter_data.ned_velocity_east = extract_float(packet.payload, i+6);
                     filter_data.ned_velocity_down = extract_float(packet.payload, i+10);
                     filter_data.speed_accuracy = extract_float(packet.payload, i+26);
-                    break;
-                }
-                // Quaternion
-                case 0x03: {
                     break;
                 }
                 // Filter Status
@@ -373,9 +369,9 @@ void AP_ExternalAHRS_LORD::handle_filter(LORD_Packet &packet) {
         }
 }
 
-void AP_ExternalAHRS_LORD::post_filter() {
+void AP_ExternalAHRS_LORD::post_filter() const {
     AP_ExternalAHRS::gps_data_message_t gps;
-    
+
     gps.gps_week = filter_data.week;
     gps.ms_tow = filter_data.tow_ms;
     gps.fix_type = gnss_data.fix_type;
@@ -444,34 +440,34 @@ void AP_ExternalAHRS_LORD::send_status_report(mavlink_channel_t chan) const {
     return;
 }
 
-Vector3f AP_ExternalAHRS_LORD::populate_vector(uint8_t *data, uint8_t offset) {
+Vector3f AP_ExternalAHRS_LORD::populate_vector(uint8_t *data, uint8_t offset) const {
     Vector3f vector;
 
     vector.x = extract_float(data, offset);
-    vector.y = extract_float(data, offset + 4);
-    vector.z = extract_float(data, offset + 8);
+    vector.y = extract_float(data, offset+4);
+    vector.z = extract_float(data, offset+8);
 
     return vector;
 }
 
-Quaternion AP_ExternalAHRS_LORD::populate_quaternion(uint8_t *data, uint8_t offset) {
+Quaternion AP_ExternalAHRS_LORD::populate_quaternion(uint8_t *data, uint8_t offset) const {
     Quaternion quat;
 
     quat.q1 = extract_float(data, offset);
-    quat.q2 = extract_float(data, offset + 4);
-    quat.q3 = extract_float(data, offset + 8);
-    quat.q4 = extract_float(data, offset + 12);
+    quat.q2 = extract_float(data, offset+4);
+    quat.q3 = extract_float(data, offset+8);
+    quat.q4 = extract_float(data, offset+12);
 
     return quat;
 }
 
-float AP_ExternalAHRS_LORD::extract_float(uint8_t *data, uint8_t offset) {
+float AP_ExternalAHRS_LORD::extract_float(uint8_t *data, uint8_t offset) const {
     uint32_t tmp = be32toh_ptr(&data[offset]);
 
     return *reinterpret_cast<float*>(&tmp);
-}
+}    void send_config();
 
-double AP_ExternalAHRS_LORD::extract_double(uint8_t *data, uint8_t offset) {
+double AP_ExternalAHRS_LORD::extract_double(uint8_t *data, uint8_t offset) const {
     uint64_t tmp = be64toh_ptr(&data[offset]);
 
     return *reinterpret_cast<double*>(&tmp);

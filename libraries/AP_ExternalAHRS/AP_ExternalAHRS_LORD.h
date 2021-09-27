@@ -81,7 +81,7 @@ private:
         uint8_t payload[256];
         uint8_t checksum[2];
     };
-    
+
     struct {
         LORD_Packet packet;
         ParseState state;
@@ -134,21 +134,20 @@ private:
         float speed_accuracy;
     } filter_data;
 
-    void send_config();
     void build_packet();
     bool valid_packet(LORD_Packet &packet);
     void handle_packet(LORD_Packet &packet);
     void handle_imu(LORD_Packet &packet);
     void handle_gnss(LORD_Packet &packet);
     void handle_filter(LORD_Packet &packet);
-    void post_imu();
-    void post_gnss();
-    void post_filter();
+    void post_imu() const;
+    void post_gnss() const;
+    void post_filter() const;
 
-    Vector3f populate_vector(uint8_t* data, uint8_t offset);
-    Quaternion populate_quaternion(uint8_t* data, uint8_t offset);
-    float extract_float(uint8_t* data, uint8_t offset);
-    double extract_double(uint8_t* data, uint8_t offset);
+    Vector3f populate_vector(uint8_t* data, uint8_t offset) const;
+    Quaternion populate_quaternion(uint8_t* data, uint8_t offset) const;
+    float extract_float(uint8_t* data, uint8_t offset) const;
+    double extract_double(uint8_t* data, uint8_t offset) const;
 
 };
 
