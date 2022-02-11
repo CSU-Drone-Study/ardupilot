@@ -275,7 +275,7 @@ void AP_ExternalAHRS_LORD::post_imu() const
             pressure_pa: imu_data.pressure,
             // setting temp to 25 effectively disables barometer temperature calibrations - these are already performed by lord
             temperature: 25,
-        };        
+        };
         AP::baro().handle_external(baro);
     }
 }
@@ -324,7 +324,8 @@ void AP_ExternalAHRS_LORD::handle_gnss(const LORD_Packet &packet)
         case GNSSPacketField::LLH_POSITION: {
             gnss_data.lat = extract_double(packet.payload, i+2) * 1.0e7; // Decimal degrees to degrees
             gnss_data.lon = extract_double(packet.payload, i+10) * 1.0e7;
-            gnss_data.msl_altitude = extract_double(packet.payload, i+26) * 1.0e2; // Meters to cm
+            gnss_data.ellipsoid_height = extract_double(packet.payload, i + 18) * 1.0e2;
+            gnss_data.msl_altitude = extract_double(packet.payload, i + 26) * 1.0e2; // Meters to cm
             gnss_data.horizontal_position_accuracy = extract_float(packet.payload, i+34);
             gnss_data.vertical_position_accuracy = extract_float(packet.payload, i+38);
             break;
@@ -364,7 +365,7 @@ void AP_ExternalAHRS_LORD::handle_filter(const LORD_Packet &packet)
         case FilterPacketField::LLH_POSITION: {
             filter_data.lat = extract_double(packet.payload, i+2) * 1.0e7; // Decimal degrees to degrees
             filter_data.lon = extract_double(packet.payload, i+10) * 1.0e7;
-            filter_data.hae_altitude = extract_double(packet.payload, i+26) * 1.0e2; // Meters to cm
+            filter_data.hae_altitude = extract_double(packet.payload, i+18) * 1.0e2; // Meters to cm
             break;
         }
         // NED Velocity
@@ -389,45 +390,74 @@ void AP_ExternalAHRS_LORD::post_filter() const
 {
     {
         WITH_SEMAPHORE(state.sem);
-        state.velocity = Vector3f{filter_data.ned_velocity_north, filter_data.ned_velocity_east, filter_data.ned_velocity_down};
-        state.have_velocity = true;
 
-        state.location = Location{filter_data.lat, filter_data.lon, gnss_data.msl_altitude, Location::AltFrame::ABSOLUTE};
+        state.have_velocity = true;
+        state.velocity = Vector3f{
+            filter_data.ned_velocity_north,
+            filter_data.ned_velocity_east,
+            filter_data.ned_velocity_down
+        };
+
         state.have_location = true;
+        state.location = Location{
+            filter_data.lat,
+            filter_data.lon,
+            filter_data.hae_altitude,
+            Location::AltFrame::ABSOLUTE
+        };
     }
 
-    AP_ExternalAHRS::gps_data_message_t gps {
-        gps_week: filter_data.week,
-        ms_tow: filter_data.tow_ms,
-        fix_type: (uint8_t) gnss_data.fix_type,
-        satellites_in_view: gnss_data.satellites,
+    AP_ExternalAHRS::gps_data_message_t gps{
+      gps_week : filter_data.week,
+      ms_tow : filter_data.tow_ms,
+      fix_type : (uint8_t)gnss_data.fix_type,
+      satellites_in_view : gnss_data.satellites,
 
-        horizontal_pos_accuracy: gnss_data.horizontal_position_accuracy,
-        vertical_pos_accuracy: gnss_data.vertical_position_accuracy,
-        horizontal_vel_accuracy: gnss_data.speed_accuracy,
+      horizontal_pos_accuracy : gnss_data.horizontal_position_accuracy,
+      vertical_pos_accuracy : gnss_data.vertical_position_accuracy,
+      horizontal_vel_accuracy : gnss_data.speed_accuracy,
 
-        hdop: gnss_data.hdop,
-        vdop: gnss_data.vdop,
+      hdop : gnss_data.hdop,
+      vdop : gnss_data.vdop,
 
-        longitude: filter_data.lon,
-        latitude: filter_data.lat,
-        msl_altitude: gnss_data.msl_altitude,
+      longitude : filter_data.lon,
+      latitude : filter_data.lat,
+      msl_altitude : filter_data.hae_altitude,
 
-        ned_vel_north: filter_data.ned_velocity_north,
-        ned_vel_east: filter_data.ned_velocity_east,
-        ned_vel_down: filter_data.ned_velocity_down,
+      ned_vel_north : filter_data.ned_velocity_north,
+      ned_vel_east : filter_data.ned_velocity_east,
+      ned_vel_down : filter_data.ned_velocity_down,
     };
 
-    if (gps.fix_type >= 3 && !state.have_origin) {
+    if (gps.fix_type >= 3 && gnss_data.horizontal_position_accuracy < 4 && gnss_data.vertical_position_accuracy < 4 && !state.have_origin) {
         WITH_SEMAPHORE(state.sem);
-        state.origin = Location{int32_t(filter_data.lat),
-                                int32_t(filter_data.lon),
-                                int32_t(gnss_data.msl_altitude),
-                                Location::AltFrame::ABSOLUTE};
+        state.origin = Location{
+            int32_t(filter_data.lat),
+            int32_t(filter_data.lon),
+            int32_t(filter_data.hae_altitude),
+            Location::AltFrame::ABSOLUTE
+        };
         state.have_origin = true;
     }
 
     AP::gps().handle_external(gps);
+
+    AP::logger().WriteStreaming("EAH2",
+                                "TimeUS,Lat,Lon,FHae,GHae,GMsl,Msl,Hpa,Vpa,Spa,OAlt",
+                                "sDUmmmmmmnm",
+                                "FGG00000000",
+                                "QLLiiiifffi",
+                                AP_HAL::micros64(),
+                                filter_data.lon,
+                                filter_data.lat,
+                                filter_data.hae_altitude,
+                                gnss_data.ellipsoid_height,
+                                gnss_data.msl_altitude,
+                                filter_data.hae_altitude - (gnss_data.ellipsoid_height - gnss_data.msl_altitude),
+                                gnss_data.horizontal_position_accuracy,
+                                gnss_data.vertical_position_accuracy,
+                                gnss_data.speed_accuracy,
+                                state.origin.alt);
 }
 
 int8_t AP_ExternalAHRS_LORD::get_port(void) const
@@ -455,10 +485,12 @@ bool AP_ExternalAHRS_LORD::pre_arm_check(char *failure_msg, uint8_t failure_msg_
         hal.util->snprintf(failure_msg, failure_msg_len, "LORD unhealthy");
         return false;
     }
+    
     if (gnss_data.fix_type < 3) {
         hal.util->snprintf(failure_msg, failure_msg_len, "LORD no GPS lock");
         return false;
     }
+
     if (filter_status.state != 0x02) {
         hal.util->snprintf(failure_msg, failure_msg_len, "LORD filter not running");
         return false;
@@ -479,7 +511,7 @@ void AP_ExternalAHRS_LORD::get_filter_status(nav_filter_status &status) const
         status.flags.vert_pos = 1;
 
         if (gnss_data.fix_type >= 3) {
-            status.flags.horiz_vel = 1;
+            status.flags.horiz_vel= 1;
             status.flags.horiz_pos_rel = 1;
             status.flags.horiz_pos_abs = 1;
             status.flags.pred_horiz_pos_rel = 1;

@@ -107,6 +107,7 @@ private:
         int32_t lon;
         int32_t lat;
         int32_t msl_altitude;
+        int32_t ellipsoid_height;
         float ned_velocity_north;
         float ned_velocity_east;
         float ned_velocity_down;
