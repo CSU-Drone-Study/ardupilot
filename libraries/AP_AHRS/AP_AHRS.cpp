@@ -782,7 +782,12 @@ bool AP_AHRS::get_location(struct Location &loc) const
 
 #if HAL_EXTERNAL_AHRS_ENABLED
     case EKFType::EXTERNAL: {
-        return AP::externalAHRS().get_location(loc);
+        if (EKF3.getLLH(loc)) {
+            return true;
+        }
+        break;
+
+        // return AP::externalAHRS().get_location(loc);
     }
 #endif
     }
@@ -1244,7 +1249,9 @@ bool AP_AHRS::get_secondary_position(struct Location &loc) const
 #if HAL_EXTERNAL_AHRS_ENABLED
     case EKFType::EXTERNAL:
         // External is secondary
-        return AP::externalAHRS().get_location(loc);
+        EKF3.getLLH(loc);
+        return _ekf3_started;
+        // return AP::externalAHRS().get_location(loc);
 #endif
     }
 
@@ -1353,7 +1360,7 @@ bool AP_AHRS::set_origin(const Location &loc)
 #if HAL_EXTERNAL_AHRS_ENABLED
     case EKFType::EXTERNAL:
         // don't allow origin set with external AHRS
-        return false;
+        return ret3;
 #endif
     }
     // since there is no default case above, this is unreachable
@@ -1600,16 +1607,26 @@ bool AP_AHRS::get_relative_position_NED_origin(Vector3f &vec) const
 #endif
 #if HAL_EXTERNAL_AHRS_ENABLED
     case EKFType::EXTERNAL: {
-        auto &extahrs = AP::externalAHRS();
-        Location loc, orgn;
-        if (extahrs.get_origin(orgn) &&
-            extahrs.get_location(loc)) {
-            const Vector2f diff2d = orgn.get_distance_NE(loc);
-            vec = Vector3f(diff2d.x, diff2d.y,
-                           -(loc.alt - orgn.alt)*0.01);
-            return true;
-        }
-        return false;
+        // auto &extahrs = AP::externalAHRS();
+        // Location loc, orgn;
+        // if (extahrs.get_origin(orgn) &&
+        //     extahrs.get_location(loc)) {
+        //     const Vector2f diff2d = orgn.get_distance_NE(loc);
+        //     vec = Vector3f(diff2d.x, diff2d.y,
+        //                    -(loc.alt - orgn.alt)*0.01);
+        //     return true;
+        // }
+        // return false;
+            Vector2f posNE;
+            float posD;
+            if (EKF3.getPosNE(posNE) && EKF3.getPosD(posD)) {
+                // position is valid
+                vec.x = posNE.x;
+                vec.y = posNE.y;
+                vec.z = posD;
+                return true;
+            }
+            return false;
     }
 #endif
     }
@@ -1671,13 +1688,15 @@ bool AP_AHRS::get_relative_position_NE_origin(Vector2f &posNE) const
 #endif
 #if HAL_EXTERNAL_AHRS_ENABLED
     case EKFType::EXTERNAL: {
-        Location loc, orgn;
-        if (!get_location(loc) ||
-            !get_origin(orgn)) {
-            return false;
-        }
-        posNE = orgn.get_distance_NE(loc);
-        return true;
+        // Location loc, orgn;
+        // if (!get_location(loc) ||
+        //     !get_origin(orgn)) {
+        //     return false;
+        // }
+        // posNE = orgn.get_distance_NE(loc);
+        // return true;
+        bool position_is_valid = EKF3.getPosNE(posNE);
+        return position_is_valid;
     }
 #endif
     }
@@ -1744,13 +1763,15 @@ bool AP_AHRS::get_relative_position_D_origin(float &posD) const
 #endif
 #if HAL_EXTERNAL_AHRS_ENABLED
     case EKFType::EXTERNAL: {
-        Location orgn, loc;
-        if (!get_origin(orgn) ||
-            !get_location(loc)) {
-            return false;
-        }
-        posD = -(loc.alt - orgn.alt)*0.01;
-        return true;
+        // Location orgn, loc;
+        // if (!get_origin(orgn) ||
+        //     !get_location(loc)) {
+        //     return false;
+        // }
+        // posD = -(loc.alt - orgn.alt)*0.01;
+        // return true;
+        bool position_is_valid = EKF3.getPosD(posD);
+        return position_is_valid;
     }
 #endif
     }
@@ -2729,7 +2750,10 @@ bool AP_AHRS::get_origin(Location &ret) const
 #endif
 #if HAL_EXTERNAL_AHRS_ENABLED
     case EKFType::EXTERNAL:
-        return AP::externalAHRS().get_origin(ret);
+        if (!EKF3.getOriginLLH(ret)) {
+            return false;
+        }
+        return true;
 #endif
     }
 
