@@ -455,10 +455,6 @@ bool AP_ExternalAHRS_LORD::pre_arm_check(char *failure_msg, uint8_t failure_msg_
         hal.util->snprintf(failure_msg, failure_msg_len, "LORD unhealthy");
         return false;
     }
-    if (gnss_data.fix_type < 3) {
-        hal.util->snprintf(failure_msg, failure_msg_len, "LORD no GPS lock");
-        return false;
-    }
     if (filter_status.state != 0x02) {
         hal.util->snprintf(failure_msg, failure_msg_len, "LORD filter not running");
         return false;
